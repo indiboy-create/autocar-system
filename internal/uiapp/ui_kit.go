@@ -113,6 +113,17 @@ func (a *App) statusLine() string {
 	)
 }
 
+// statusBar 在主内容区底部常驻显示状态：有操作时显示最近的成功/错误消息，
+// 否则显示根目录与各类计数。此前 statusLine() 只有测试在调用，用户看不到反馈。
+func (a *App) statusBar(c *myui.Context, p palette) {
+	myui.Box(c.Key("status-bar")).Children(func() {
+		myui.Box(c).Height(1).Background(p.hairline)
+		myui.Row(c).Height(30).PaddingX(22).AlignItems(myui.Center).Children(func() {
+			myui.Text(c, a.statusLine()).FontSize(11.5).TextColor(p.muted).Grow(1)
+		})
+	})
+}
+
 func (a *App) setStatus(message string) {
 	a.status = strings.TrimSpace(i18n.T(message))
 }

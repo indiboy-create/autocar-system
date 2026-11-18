@@ -53,6 +53,7 @@ func main() {
 			Height:               760,
 			MinWidth:             880,
 			MinHeight:            600,
+			StateKey:             "autocarsystem-main",
 			TitleBarStyle:        mygo.TitleBarHidden,
 			TitleBarHeight:       46,
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
@@ -63,6 +64,14 @@ func main() {
 		app.AttachWindow(win)
 		win.SetWindowButtonsTheme(mygo.ThemeSystem)
 
+		showMain := func() {
+			if !win.IsVisible() {
+				win.Show()
+			}
+			win.Restore()
+			win.Focus()
+		}
+
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
 			app.SetQuitting(true)
 		})
@@ -72,6 +81,8 @@ func main() {
 				win.Hide()
 			}
 		})
+		// 切回窗口时重新读取数据，让在其它程序里改动的文件/数据库反映到界面。
+		win.OnFocus(app.Refresh)
 
 		tray, err := mygo.NewTray(mygo.TrayOptions{
 			Icon:    trayIcon,
@@ -96,16 +107,13 @@ func main() {
 			log.Printf("创建托盘失败: %v", err)
 		} else {
 			app.AttachTray(tray)
-			tray.OnClick(win.Show)
+			tray.OnClick(showMain)
+			// Windows 退出后通知区会残留图标直到鼠标划过，主动销毁。
+			mygo.App.OnWillQuit(func(*mygo.QuitEvent) { tray.Destroy() })
 		}
 
-		mygo.App.OnSecondInstance(func([]string, string) {
-			if !win.IsVisible() {
-				win.Show()
-			}
-			win.Restore()
-			win.Focus()
-		})
+		mygo.App.OnActivate(func(bool) { showMain() })
+		mygo.App.OnSecondInstance(func([]string, string) { showMain() })
 	})
 
 	if err := mygo.App.Run(); err != nil {

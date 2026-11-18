@@ -17,10 +17,12 @@ import (
 func (a *App) renderGallery(c *myui.Context) {
 	myui.Text(c, i18n.T("图集列表")).FontSize(18).Bold()
 	myui.Row(c).Gap(8).Children(func() {
-		if myui.TextInput(c.Key("gal-yuvision"), &a.galYuvisionID).Placeholder(i18n.T("版型 ID")).Submitted() {
+		if myui.TextInput(c.Key("gal-yuvision"), &a.galYuvisionID).Placeholder(i18n.T("版型 ID")).Label(i18n.T("版型 ID")).Submitted() {
 			a.createGallery()
 		}
-		myui.TextInput(c.Key("gal-title"), &a.galTitle).Placeholder(i18n.T("图集标题"))
+		if myui.TextInput(c.Key("gal-title"), &a.galTitle).Placeholder(i18n.T("图集标题")).Label(i18n.T("图集标题")).Submitted() {
+			a.createGallery()
+		}
 		if myui.Button(c, i18n.T("新增图集")).Clicked() {
 			a.createGallery()
 		}
@@ -28,7 +30,7 @@ func (a *App) renderGallery(c *myui.Context) {
 	myui.Text(c, i18n.T("新增后请选择图片上传；封面自动取第一张图片。"))
 
 	myui.Row(c).Gap(8).Children(func() {
-		if myui.TextInput(c.Key("gal-search"), &a.gallerySearch).Placeholder(i18n.T("搜索标题 / 图集 ID / 版型 ID")).Changed() {
+		if myui.TextInput(c.Key("gal-search"), &a.gallerySearch).Placeholder(i18n.T("搜索标题 / 图集 ID / 版型 ID")).Label(i18n.T("搜索标题 / 图集 ID / 版型 ID")).Bind(&a.searchBox).Changed() {
 			a.Refresh()
 		}
 		if myui.Button(c, i18n.T("搜索")).Clicked() {
@@ -45,21 +47,21 @@ func (a *App) renderGallery(c *myui.Context) {
 		}
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		if myui.TextInput(c.Key("filter-brand"), &a.filterBrandID).Placeholder(i18n.T("品牌 ID")).Changed() {
+		if myui.TextInput(c.Key("filter-brand"), &a.filterBrandID).Placeholder(i18n.T("品牌 ID")).Label(i18n.T("品牌 ID")).Changed() {
 			a.Refresh()
 		}
-		if myui.TextInput(c.Key("filter-firm"), &a.filterFirmID).Placeholder(i18n.T("厂商 ID")).Changed() {
+		if myui.TextInput(c.Key("filter-firm"), &a.filterFirmID).Placeholder(i18n.T("厂商 ID")).Label(i18n.T("厂商 ID")).Changed() {
 			a.Refresh()
 		}
-		if myui.TextInput(c.Key("filter-series"), &a.filterSeriesID).Placeholder(i18n.T("车系 ID")).Changed() {
+		if myui.TextInput(c.Key("filter-series"), &a.filterSeriesID).Placeholder(i18n.T("车系 ID")).Label(i18n.T("车系 ID")).Changed() {
 			a.Refresh()
 		}
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		if myui.TextInput(c.Key("filter-category"), &a.filterCategory).Placeholder(i18n.T("分类 ID")).Changed() {
+		if myui.TextInput(c.Key("filter-category"), &a.filterCategory).Placeholder(i18n.T("分类 ID")).Label(i18n.T("分类 ID")).Changed() {
 			a.Refresh()
 		}
-		if myui.TextInput(c.Key("filter-yuvision"), &a.filterYuvision).Placeholder(i18n.T("版型 ID")).Changed() {
+		if myui.TextInput(c.Key("filter-yuvision"), &a.filterYuvision).Placeholder(i18n.T("版型 ID")).Label(i18n.T("版型 ID")).Changed() {
 			a.Refresh()
 		}
 	})
@@ -112,8 +114,8 @@ func (a *App) renderGallery(c *myui.Context) {
 
 	myui.Text(c, i18n.T("图集图片上传")).FontSize(16).Bold()
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("gal-upload-id"), &a.galUploadID).Placeholder(i18n.T("图集 ID"))
-		myui.TextInput(c.Key("gal-upload-src"), &a.galUploadSrc).Placeholder(i18n.T("本地图片完整路径"))
+		myui.TextInput(c.Key("gal-upload-id"), &a.galUploadID).Placeholder(i18n.T("图集 ID")).Label(i18n.T("图集 ID"))
+		myui.TextInput(c.Key("gal-upload-src"), &a.galUploadSrc).Placeholder(i18n.T("本地图片完整路径")).Label(i18n.T("本地图片完整路径"))
 		if myui.Button(c, i18n.T("选择图片")).Clicked() {
 			idText := a.galUploadID
 			go a.pickGalleryImages(idText)
@@ -127,14 +129,16 @@ func (a *App) renderGallery(c *myui.Context) {
 func (a *App) renderYuvision(c *myui.Context) {
 	myui.Text(c, i18n.T("版型管理")).FontSize(18).Bold()
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("yv-brand"), &a.yvBrandID).Placeholder(i18n.T("品牌 ID"))
-		myui.TextInput(c.Key("yv-firm"), &a.yvFirmID).Placeholder(i18n.T("厂商 ID"))
-		myui.TextInput(c.Key("yv-series"), &a.yvSeriesID).Placeholder(i18n.T("车系 ID"))
-		myui.TextInput(c.Key("yv-category"), &a.yvCategory).Placeholder(i18n.T("分类 ID"))
+		myui.TextInput(c.Key("yv-brand"), &a.yvBrandID).Placeholder(i18n.T("品牌 ID")).Label(i18n.T("品牌 ID"))
+		myui.TextInput(c.Key("yv-firm"), &a.yvFirmID).Placeholder(i18n.T("厂商 ID")).Label(i18n.T("厂商 ID"))
+		myui.TextInput(c.Key("yv-series"), &a.yvSeriesID).Placeholder(i18n.T("车系 ID")).Label(i18n.T("车系 ID"))
+		myui.TextInput(c.Key("yv-category"), &a.yvCategory).Placeholder(i18n.T("分类 ID")).Label(i18n.T("分类 ID"))
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("yv-name"), &a.yvName).Placeholder(i18n.T("版型名称"))
-		myui.TextInput(c.Key("yv-desc"), &a.yvDesc).Placeholder(i18n.T("描述"))
+		if myui.TextInput(c.Key("yv-name"), &a.yvName).Placeholder(i18n.T("版型名称")).Label(i18n.T("版型名称")).Submitted() {
+			a.createYuvision()
+		}
+		myui.TextInput(c.Key("yv-desc"), &a.yvDesc).Placeholder(i18n.T("描述")).Label(i18n.T("描述"))
 		if myui.Button(c, i18n.T("新增版型")).Clicked() {
 			a.createYuvision()
 		}
@@ -159,8 +163,8 @@ func (a *App) renderYuvision(c *myui.Context) {
 
 	myui.Text(c, i18n.T("版型图片上传")).FontSize(16).Bold()
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("yv-upload-id"), &a.yvUploadID).Placeholder(i18n.T("版型 ID"))
-		myui.TextInput(c.Key("yv-upload-src"), &a.yvUploadSrc).Placeholder(i18n.T("本地图片完整路径"))
+		myui.TextInput(c.Key("yv-upload-id"), &a.yvUploadID).Placeholder(i18n.T("版型 ID")).Label(i18n.T("版型 ID"))
+		myui.TextInput(c.Key("yv-upload-src"), &a.yvUploadSrc).Placeholder(i18n.T("本地图片完整路径")).Label(i18n.T("本地图片完整路径"))
 		if myui.Button(c, i18n.T("选择图片")).Clicked() {
 			idText := a.yvUploadID
 			go a.pickYuvisionImages(idText)
@@ -176,7 +180,7 @@ func (a *App) renderYuvision(c *myui.Context) {
 
 func (a *App) renderCategories(c *myui.Context) {
 	myui.Row(c).Gap(8).Children(func() {
-		if myui.TextInput(c, &a.newName).Placeholder(i18n.T("新分类名称")).Submitted() {
+		if myui.TextInput(c, &a.newName).Placeholder(i18n.T("新分类名称")).Label(i18n.T("新分类名称")).Submitted() {
 			a.createCategory()
 		}
 		if myui.Button(c, i18n.T("新增分类")).Clicked() {
@@ -393,6 +397,8 @@ func (a *App) openImageDialog(title string) ([]string, error) {
 }
 
 func (a *App) renderLightbox(c *myui.Context) {
+	// Esc 关闭预览（与关闭按钮同一路径），让键盘用户无需鼠标。
+	c.OnShortcut(0, myui.KeyEscape, a.closeLightbox)
 	myui.Column(c).Fill().Center().Padding(20).Gap(12).Children(func() {
 		myui.Text(c, a.lightboxTitle).FontSize(18).Bold()
 		if a.lightboxImage != nil {
@@ -400,12 +406,21 @@ func (a *App) renderLightbox(c *myui.Context) {
 		} else {
 			myui.Text(c, i18n.T("图片无法预览"))
 		}
-		if myui.Button(c, i18n.T("关闭")).Clicked() {
-			if a.lightboxWin != nil {
-				a.lightboxWin.Hide()
-			}
+		// AutoFocus 让预览打开时关闭按钮即获得焦点，Enter/Esc 都可关闭。
+		if myui.Button(c, i18n.T("关闭")).AutoFocus().Clicked() {
+			a.closeLightbox()
 		}
 	})
+}
+
+func (a *App) closeLightbox() {
+	if a.closeLightboxFn != nil {
+		a.closeLightboxFn()
+		return
+	}
+	if a.lightboxWin != nil {
+		a.lightboxWin.Hide()
+	}
 }
 
 func (a *App) openLightbox(item domain.Gallery) {

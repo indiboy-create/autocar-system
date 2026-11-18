@@ -195,27 +195,27 @@ func (a *App) renderCatalogEdit(c *myui.Context) {
 	switch a.catalogEntity {
 	case "brand":
 		myui.Row(c).Gap(8).Children(func() {
-			myui.TextInput(c.Key("edit-brand-name"), &a.brandEdit.Name).Placeholder(i18n.T("名称"))
-			myui.TextInput(c.Key("edit-brand-letter"), &a.brandEdit.FirstLetter).Placeholder(i18n.T("首字母"))
+			myui.TextInput(c.Key("edit-brand-name"), &a.brandEdit.Name).Placeholder(i18n.T("名称")).Label(i18n.T("名称"))
+			myui.TextInput(c.Key("edit-brand-letter"), &a.brandEdit.FirstLetter).Placeholder(i18n.T("首字母")).Label(i18n.T("首字母"))
 		})
 		myui.Row(c).Gap(8).Children(func() {
-			myui.TextInput(c.Key("edit-brand-logo-url"), &a.brandEdit.LogoURL).Placeholder("Logo URL")
-			myui.TextInput(c.Key("edit-brand-logo-local"), &a.brandEdit.LogoLocalPath).Placeholder(i18n.T("Logo 本地路径"))
+			myui.TextInput(c.Key("edit-brand-logo-url"), &a.brandEdit.LogoURL).Placeholder("Logo URL").Label("Logo URL")
+			myui.TextInput(c.Key("edit-brand-logo-local"), &a.brandEdit.LogoLocalPath).Placeholder(i18n.T("Logo 本地路径")).Label(i18n.T("Logo 本地路径"))
 		})
 		myui.Row(c).Gap(8).Children(func() {
-			myui.TextInput(c.Key("edit-brand-state"), &a.brandEdit.State).Placeholder("state")
-			myui.TextInput(c.Key("edit-brand-energy"), &a.brandEdit.HaveNewEnergy).Placeholder("havenewenergy")
-			myui.TextInput(c.Key("edit-brand-sort"), &a.brandEdit.APISort).Placeholder("api_sort")
+			myui.TextInput(c.Key("edit-brand-state"), &a.brandEdit.State).Placeholder("state").Label("state")
+			myui.TextInput(c.Key("edit-brand-energy"), &a.brandEdit.HaveNewEnergy).Placeholder("havenewenergy").Label("havenewenergy")
+			myui.TextInput(c.Key("edit-brand-sort"), &a.brandEdit.APISort).Placeholder("api_sort").Label("api_sort")
 		})
 	case "firm":
 		myui.Row(c).Gap(8).Children(func() {
-			myui.TextInput(c.Key("edit-firm-name"), &a.firmEdit.Name).Placeholder(i18n.T("名称"))
-			myui.TextInput(c.Key("edit-firm-py"), &a.firmEdit.PY).Placeholder("py")
-			myui.TextInput(c.Key("edit-firm-link"), &a.firmEdit.Link).Placeholder("link")
+			myui.TextInput(c.Key("edit-firm-name"), &a.firmEdit.Name).Placeholder(i18n.T("名称")).Label(i18n.T("名称"))
+			myui.TextInput(c.Key("edit-firm-py"), &a.firmEdit.PY).Placeholder("py").Label("py")
+			myui.TextInput(c.Key("edit-firm-link"), &a.firmEdit.Link).Placeholder("link").Label("link")
 		})
 		myui.Row(c).Gap(8).Children(func() {
-			myui.TextInput(c.Key("edit-firm-logo-url"), &a.firmEdit.LogoURL).Placeholder("Logo URL")
-			myui.TextInput(c.Key("edit-firm-logo-local"), &a.firmEdit.LogoLocalPath).Placeholder(i18n.T("Logo 本地路径"))
+			myui.TextInput(c.Key("edit-firm-logo-url"), &a.firmEdit.LogoURL).Placeholder("Logo URL").Label("Logo URL")
+			myui.TextInput(c.Key("edit-firm-logo-local"), &a.firmEdit.LogoLocalPath).Placeholder(i18n.T("Logo 本地路径")).Label(i18n.T("Logo 本地路径"))
 		})
 	case "series":
 		a.renderSeriesEdit(c)
@@ -233,69 +233,69 @@ func (a *App) renderCatalogEdit(c *myui.Context) {
 
 func (a *App) renderSeriesEdit(c *myui.Context) {
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("se-name"), &a.seriesEdit.Name).Placeholder(i18n.T("名称"))
-		myui.TextInput(c.Key("se-group"), &a.seriesEdit.GroupName).Placeholder("group_name")
-		myui.TextInput(c.Key("se-place"), &a.seriesEdit.Place).Placeholder("place")
+		myui.TextInput(c.Key("se-name"), &a.seriesEdit.Name).Placeholder(i18n.T("名称")).Label(i18n.T("名称"))
+		myui.TextInput(c.Key("se-group"), &a.seriesEdit.GroupName).Placeholder("group_name").Label("group_name")
+		myui.TextInput(c.Key("se-place"), &a.seriesEdit.Place).Placeholder("place").Label("place")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("se-price-min"), &a.seriesEdit.PriceMin).Placeholder("price_min")
-		myui.TextInput(c.Key("se-price-max"), &a.seriesEdit.PriceMax).Placeholder("price_max")
-		myui.TextInput(c.Key("se-state"), &a.seriesEdit.State).Placeholder("state")
+		myui.TextInput(c.Key("se-price-min"), &a.seriesEdit.PriceMin).Placeholder("price_min").Label("price_min")
+		myui.TextInput(c.Key("se-price-max"), &a.seriesEdit.PriceMax).Placeholder("price_max").Label("price_max")
+		myui.TextInput(c.Key("se-state"), &a.seriesEdit.State).Placeholder("state").Label("state")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("se-py"), &a.seriesEdit.PY).Placeholder("py")
-		myui.TextInput(c.Key("se-level"), &a.seriesEdit.LevelName).Placeholder("level_name")
-		myui.TextInput(c.Key("se-fuel"), &a.seriesEdit.FuelTypes).Placeholder("fuel_types")
+		myui.TextInput(c.Key("se-py"), &a.seriesEdit.PY).Placeholder("py").Label("py")
+		myui.TextInput(c.Key("se-level"), &a.seriesEdit.LevelName).Placeholder("level_name").Label("level_name")
+		myui.TextInput(c.Key("se-fuel"), &a.seriesEdit.FuelTypes).Placeholder("fuel_types").Label("fuel_types")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("se-cartype"), &a.seriesEdit.CartypeName).Placeholder("cartypename")
-		myui.TextInput(c.Key("se-tag"), &a.seriesEdit.Tag1).Placeholder("tag1")
+		myui.TextInput(c.Key("se-cartype"), &a.seriesEdit.CartypeName).Placeholder("cartypename").Label("cartypename")
+		myui.TextInput(c.Key("se-tag"), &a.seriesEdit.Tag1).Placeholder("tag1").Label("tag1")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("se-logo-url"), &a.seriesEdit.LogoURL).Placeholder("logo_url")
-		myui.TextInput(c.Key("se-logo-local"), &a.seriesEdit.LogoLocalPath).Placeholder("logo_local_path")
+		myui.TextInput(c.Key("se-logo-url"), &a.seriesEdit.LogoURL).Placeholder("logo_url").Label("logo_url")
+		myui.TextInput(c.Key("se-logo-local"), &a.seriesEdit.LogoLocalPath).Placeholder("logo_local_path").Label("logo_local_path")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("se-energy"), &a.seriesEdit.NewEnergy).Placeholder("newenergy")
-		myui.TextInput(c.Key("se-foreign"), &a.seriesEdit.IsForeignCar).Placeholder("is_foreign_car")
-		myui.TextInput(c.Key("se-top"), &a.seriesEdit.IsTop).Placeholder("is_top")
+		myui.TextInput(c.Key("se-energy"), &a.seriesEdit.NewEnergy).Placeholder("newenergy").Label("newenergy")
+		myui.TextInput(c.Key("se-foreign"), &a.seriesEdit.IsForeignCar).Placeholder("is_foreign_car").Label("is_foreign_car")
+		myui.TextInput(c.Key("se-top"), &a.seriesEdit.IsTop).Placeholder("is_top").Label("is_top")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("se-rank"), &a.seriesEdit.Rank).Placeholder("rank")
-		myui.TextInput(c.Key("se-uv"), &a.seriesEdit.UVRank).Placeholder("uv_rank")
-		myui.TextInput(c.Key("se-hot"), &a.seriesEdit.HotRank).Placeholder("hot_rank")
+		myui.TextInput(c.Key("se-rank"), &a.seriesEdit.Rank).Placeholder("rank").Label("rank")
+		myui.TextInput(c.Key("se-uv"), &a.seriesEdit.UVRank).Placeholder("uv_rank").Label("uv_rank")
+		myui.TextInput(c.Key("se-hot"), &a.seriesEdit.HotRank).Placeholder("hot_rank").Label("hot_rank")
 	})
 }
 
 func (a *App) renderSpecEdit(c *myui.Context) {
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("sp-name"), &a.specEdit.Name).Placeholder(i18n.T("名称"))
-		myui.TextInput(c.Key("sp-group"), &a.specEdit.GroupName).Placeholder("group_name")
-		myui.TextInput(c.Key("sp-series-name"), &a.specEdit.SeriesName).Placeholder("series_name")
+		myui.TextInput(c.Key("sp-name"), &a.specEdit.Name).Placeholder(i18n.T("名称")).Label(i18n.T("名称"))
+		myui.TextInput(c.Key("sp-group"), &a.specEdit.GroupName).Placeholder("group_name").Label("group_name")
+		myui.TextInput(c.Key("sp-series-name"), &a.specEdit.SeriesName).Placeholder("series_name").Label("series_name")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("sp-year"), &a.specEdit.ModelYear).Placeholder("model_year")
-		myui.TextInput(c.Key("sp-body"), &a.specEdit.BodyForm).Placeholder("body_form")
-		myui.TextInput(c.Key("sp-sale"), &a.specEdit.SaleType).Placeholder("sale_type")
+		myui.TextInput(c.Key("sp-year"), &a.specEdit.ModelYear).Placeholder("model_year").Label("model_year")
+		myui.TextInput(c.Key("sp-body"), &a.specEdit.BodyForm).Placeholder("body_form").Label("body_form")
+		myui.TextInput(c.Key("sp-sale"), &a.specEdit.SaleType).Placeholder("sale_type").Label("sale_type")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("sp-price-min"), &a.specEdit.PriceMin).Placeholder("price_min")
-		myui.TextInput(c.Key("sp-price-max"), &a.specEdit.PriceMax).Placeholder("price_max")
-		myui.TextInput(c.Key("sp-news-price"), &a.specEdit.NewsPrice).Placeholder("news_price")
+		myui.TextInput(c.Key("sp-price-min"), &a.specEdit.PriceMin).Placeholder("price_min").Label("price_min")
+		myui.TextInput(c.Key("sp-price-max"), &a.specEdit.PriceMax).Placeholder("price_max").Label("price_max")
+		myui.TextInput(c.Key("sp-news-price"), &a.specEdit.NewsPrice).Placeholder("news_price").Label("news_price")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("sp-news-id"), &a.specEdit.NewsID).Placeholder("news_id")
-		myui.TextInput(c.Key("sp-dealer-id"), &a.specEdit.DealerID).Placeholder("dealer_id")
+		myui.TextInput(c.Key("sp-news-id"), &a.specEdit.NewsID).Placeholder("news_id").Label("news_id")
+		myui.TextInput(c.Key("sp-dealer-id"), &a.specEdit.DealerID).Placeholder("dealer_id").Label("dealer_id")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("sp-image-url"), &a.specEdit.ImageURL).Placeholder("image_url")
-		myui.TextInput(c.Key("sp-image-local"), &a.specEdit.ImageLocalPath).Placeholder("image_local_path")
-		myui.TextInput(c.Key("sp-image-sha"), &a.specEdit.ImageSHA256).Placeholder("image_sha256")
+		myui.TextInput(c.Key("sp-image-url"), &a.specEdit.ImageURL).Placeholder("image_url").Label("image_url")
+		myui.TextInput(c.Key("sp-image-local"), &a.specEdit.ImageLocalPath).Placeholder("image_local_path").Label("image_local_path")
+		myui.TextInput(c.Key("sp-image-sha"), &a.specEdit.ImageSHA256).Placeholder("image_sha256").Label("image_sha256")
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("sp-white-url"), &a.specEdit.WhiteImageURL).Placeholder("white_image_url")
-		myui.TextInput(c.Key("sp-white-local"), &a.specEdit.WhiteImageLocalPath).Placeholder("white_image_local_path")
-		myui.TextInput(c.Key("sp-white-sha"), &a.specEdit.WhiteImageSHA256).Placeholder("white_image_sha256")
+		myui.TextInput(c.Key("sp-white-url"), &a.specEdit.WhiteImageURL).Placeholder("white_image_url").Label("white_image_url")
+		myui.TextInput(c.Key("sp-white-local"), &a.specEdit.WhiteImageLocalPath).Placeholder("white_image_local_path").Label("white_image_local_path")
+		myui.TextInput(c.Key("sp-white-sha"), &a.specEdit.WhiteImageSHA256).Placeholder("white_image_sha256").Label("white_image_sha256")
 	})
 }
 

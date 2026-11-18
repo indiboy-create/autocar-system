@@ -56,7 +56,8 @@ type appCore struct {
 	paths      config.Paths
 	status     string
 	quitting   bool
-	refreshSeq uint64 // 递增序号，丢弃过期的异步 Refresh 结果
+	refreshSeq uint64       // 递增序号，丢弃过期的异步 Refresh 结果
+	runOnMain  func(func()) // 主线程执行器；生产为 nil（用 mygo.RunOnMain），测试注入同步执行
 }
 
 type appNav struct {
@@ -105,6 +106,7 @@ type appGalleryDraft struct {
 type appGalleryFilter struct {
 	gallerySearch     string
 	filterBrandID     string
+	searchBox         myui.Handle // Cmd+F 聚焦的搜索框
 	filterFirmID      string
 	filterSeriesID    string
 	filterCategory    string
@@ -133,9 +135,10 @@ type appSync struct {
 }
 
 type appLightbox struct {
-	lightboxWin   *mygo.Window
-	lightboxImage *myui.Bitmap
-	lightboxTitle string
+	lightboxWin     *mygo.Window
+	lightboxImage   *myui.Bitmap
+	lightboxTitle   string
+	closeLightboxFn func() // 测试可注入，验证 Esc/按钮关闭路径；生产为 nil（用 lightboxWin.Hide）
 }
 
 type appCatalogEdit struct {
@@ -211,7 +214,11 @@ type appCovers struct {
 	coverBitmaps map[string]*myui.Bitmap
 }
 
-// App 按职责内嵌状态分组；字段名提升后原有 a.field 访问保持不变。
+type appScroll struct {
+	contentScroll  myui.ScrollState
+	settingsScroll myui.ScrollState
+	navScroll      myui.ScrollState
+}
 
 // App 按职责内嵌状态分组；字段名提升后原有 a.field 访问保持不变。
 type App struct {
@@ -227,6 +234,7 @@ type App struct {
 	appLightbox
 	appCatalogEdit
 	appCovers
+	appScroll
 }
 
 func New(svc *service.Service, paths config.Paths) *App {
@@ -274,29 +282,56 @@ func (a *App) SetQuitting(v bool) { a.quitting = v }
 
 func (a *App) Quitting() bool { return a.quitting }
 
+// postMain 在主线程同步执行 fn。生产环境走 mygo 事件循环；测试注入 runOnMain
+// 直接执行，从而无需窗口与事件循环即可验证状态逻辑。
+func (a *App) postMain(fn func()) {
+	if a.runOnMain != nil {
+		a.runOnMain(fn)
+		return
+	}
+	mygo.RunOnMain(fn)
+}
+
+// Refresh 可从任意 goroutine 调用：序号自增与筛选条件快照都在主线程完成，
+// 数据库与封面解码在后台 goroutine 执行，结果再经 Window.Update 回投主线程。
 func (a *App) Refresh() {
-	seq := a.refreshSeq + 1
-	a.refreshSeq = seq
+	var filter domain.GalleryFilter
+	var seq uint64
+	var win *mygo.Window
+	var withCovers bool
 
-	// 在主线程快照筛选条件，避免后台读到正在被用户输入修改的字段。
-	filter := a.galleryFilter()
+	// postMain 在主线程上直接执行；从后台调用时会切到主线程并等待，
+	// 保证 refreshSeq 与筛选字段的读写都在同一线程，消除竞态。
+	a.postMain(func() {
+		seq = a.refreshSeq + 1
+		a.refreshSeq = seq
+		filter = a.galleryFilter()
+		win = a.win
+		// 封面只在图集页（默认页）按需解码，其它页面跳过重型 IO。
+		withCovers = a.page == "gallery"
+	})
 
-	if a.win == nil {
+	if win == nil {
 		// 启动阶段（AttachWindow 之前）无窗口可回投，同步加载一次。
-		a.applyRefresh(a.fetchRefresh(context.Background(), filter), seq, false)
+		a.applyRefresh(a.fetchRefresh(context.Background(), filter, withCovers), seq, false)
 		return
 	}
 
 	go func() {
-		result := a.fetchRefresh(context.Background(), filter)
-		a.win.Update(func() {
-			// 只应用最后一次刷新的结果，丢弃快速输入/连续操作产生的旧结果。
-			if seq != a.refreshSeq {
-				return
-			}
-			a.applyRefresh(result, seq, true)
+		result := a.fetchRefresh(context.Background(), filter, withCovers)
+		win.Update(func() {
+			a.applyAsyncRefresh(result, seq)
 		})
 	}()
+}
+
+// applyAsyncRefresh 回投主线程后只应用最后一次刷新的结果：序号过期则整批丢弃，
+// 避免快速输入或连续操作产生的旧结果覆盖新状态。
+func (a *App) applyAsyncRefresh(result refreshResult, seq uint64) {
+	if seq != a.refreshSeq {
+		return
+	}
+	a.applyRefresh(result, seq, true)
 }
 
 func (a *App) currentRoute() navRoute {
@@ -347,8 +382,23 @@ func (a *App) goForward() {
 	a.show(r)
 }
 
+// shortcuts 注册全局键盘快捷键：前进/后退、以及聚焦图集搜索框。
+// 与侧栏/顶部的按钮共用同一状态方法，保证鼠标与键盘行为一致。
+func (a *App) shortcuts(c *myui.Context) {
+	c.OnShortcut(0, myui.KeyBack, a.back)
+	c.OnShortcut(0, myui.KeyForward, a.goForward)
+	c.OnShortcut(myui.Cmd, myui.KeyBracketLeft, a.back)
+	c.OnShortcut(myui.Cmd, myui.KeyBracketRight, a.goForward)
+	c.OnShortcut(myui.Cmd, myui.KeyF, func() {
+		if a.page == "gallery" {
+			a.searchBox.Focus(c)
+		}
+	})
+}
+
 func (a *App) View(c *myui.Context) {
 	a.applyTheme(c)
+	a.shortcuts(c)
 	p := paletteFor(c.Theme().Dark)
 
 	if c.Vibrancy() {
@@ -373,6 +423,7 @@ func (a *App) View(c *myui.Context) {
 			main.Children(func() {
 				pad := float32(46)
 				myui.Scroll(c.Key("content-"+a.page)).
+					TrackScroll(&a.contentScroll).
 					Grow(1).
 					Padding(pad, 22, 24, 22).
 					Children(func() {
@@ -382,6 +433,7 @@ func (a *App) View(c *myui.Context) {
 						}
 						a.renderPage(c)
 					})
+				a.statusBar(c, p)
 				edge := myui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(pad).DragWindow().
 					Material(glass.ScrollEdge{Hard: true, Background: p.bg})
 				edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
@@ -520,11 +572,13 @@ func (a *App) systemSettings(c *myui.Context) {
 
 func (a *App) updateSettings(c *myui.Context) {
 	p := paletteFor(c.Theme().Dark)
+	enabled := updatesEnabled()
 
 	a.settingsGroup(c, func() {
 		a.settingsRow(c, i18n.T("自动检查更新"), i18n.T("每天检查一次是否有新版本"), func() {
 			on := a.prefs.AutoCheckUpdates
-			if myui.Switch(c.Key("update-checks"), &on).Label(i18n.T("自动检查更新")).Changed() {
+			if myui.Switch(c.Key("update-checks"), &on).Label(i18n.T("自动检查更新")).
+				Disabled(!enabled).Changed() {
 				a.prefs.AutoCheckUpdates = on
 				a.savePrefs()
 			}
@@ -532,18 +586,22 @@ func (a *App) updateSettings(c *myui.Context) {
 		a.settingsRow(c, i18n.T("自动下载并安装"), i18n.T("在后台下载新版本，下次打开时生效"), func() {
 			on := a.prefs.AutoInstallUpdates
 			if myui.Switch(c.Key("update-downloads"), &on).Label(i18n.T("自动下载并安装")).
-				Disabled(!a.prefs.AutoCheckUpdates).Changed() {
+				Disabled(!enabled || !a.prefs.AutoCheckUpdates).Changed() {
 				a.prefs.AutoInstallUpdates = on
 				a.savePrefs()
 			}
 		})
 		a.settingsRow(c, fmt.Sprintf(i18n.T("当前版本 %s"), mygo.App.Version()), "", func() {
-			if myui.Button(c.Key("check-updates"), i18n.T("检查更新")).Clicked() {
-				a.settingsMessage = i18n.T("当前尚未配置更新服务器")
+			if myui.Button(c.Key("check-updates"), i18n.T("检查更新")).Disabled(!enabled).Clicked() {
+				a.checkUpdateNow()
 			}
 		})
 	})
 
+	// 未配置更新时明确说明，不让用户误以为开关可用或检查按钮会生效。
+	if !enabled {
+		myui.Text(c, i18n.T("当前构建未启用自动更新")).FontSize(12.5).TextColor(p.muted)
+	}
 	if strings.TrimSpace(a.settingsMessage) != "" {
 		myui.Text(c, a.settingsMessage).FontSize(12.5).TextColor(p.muted)
 	}

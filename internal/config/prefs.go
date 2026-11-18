@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"autocarsystem/internal/fileutil"
 )
 
 type Prefs struct {
@@ -46,7 +48,8 @@ func SavePrefs(path string, prefs Prefs) error {
 	if err != nil {
 		return fmt.Errorf("序列化偏好设置失败: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	// 原子写：崩溃/断电时 prefs.json 只会被替换或保留旧内容，不会被截断。
+	if err := fileutil.WriteFileAtomic(path, data, 0o644); err != nil {
 		return fmt.Errorf("写入偏好设置失败: %w", err)
 	}
 	return nil

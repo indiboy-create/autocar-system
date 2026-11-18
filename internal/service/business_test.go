@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"autocarsystem/internal/config"
+	"autocarsystem/internal/media"
 	"autocarsystem/internal/store"
 )
 
@@ -77,7 +78,7 @@ func TestLocalBusinessFlow(t *testing.T) {
 	if _, err := os.Stat(yvFile); err != nil {
 		t.Fatalf("yuvision image file missing: %v", err)
 	}
-	yvThumb := filepath.Join(yvBase, "thumb", filepath.Base(filepath.FromSlash(yvRel)))
+	yvThumb := filepath.Join(yvBase, filepath.FromSlash(media.ThumbnailRel(yvRel)))
 	if _, err := os.Stat(yvThumb); err != nil {
 		t.Fatalf("yuvision thumbnail missing: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestLocalBusinessFlow(t *testing.T) {
 		t.Fatalf("unexpected gallery rel path: %s", galRel)
 	}
 	galBase := filepath.Join(paths.Gallery, "1", fmt.Sprintf("%d", galleryID))
-	galThumb := filepath.Join(galBase, "thumb", filepath.Base(filepath.FromSlash(galRel)))
+	galThumb := filepath.Join(galBase, filepath.FromSlash(media.ThumbnailRel(galRel)))
 	if _, err := os.Stat(galThumb); err != nil {
 		t.Fatalf("gallery thumbnail missing: %v", err)
 	}

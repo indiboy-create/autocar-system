@@ -22,11 +22,14 @@ type refreshResult struct {
 	specs      []domain.Spec
 	backups    []domain.BackupInfo
 	covers     map[string]*myui.Bitmap
+	withCovers bool // 本次是否按需解码了封面（决定 apply 时是否覆盖缓存）
 	errors     []string
 }
 
 // fetchRefresh 在后台执行所有数据库查询与封面解码，不触碰 App 的可变状态。
-func (a *App) fetchRefresh(ctx context.Context, filter domain.GalleryFilter) refreshResult {
+// withCovers 为 false 时跳过封面解码：非图集页不需要封面，省去最多 200 次
+// 磁盘读取与图片解码。
+func (a *App) fetchRefresh(ctx context.Context, filter domain.GalleryFilter, withCovers bool) refreshResult {
 	var r refreshResult
 
 	if v, err := a.svc.ListCategories(ctx); err != nil {
@@ -45,7 +48,10 @@ func (a *App) fetchRefresh(ctx context.Context, filter domain.GalleryFilter) ref
 		r.errors = append(r.errors, err.Error())
 	} else {
 		r.galleries = v
-		r.covers = a.buildCoverBitmaps(v)
+		if withCovers {
+			r.covers = a.buildCoverBitmaps(v)
+			r.withCovers = true
+		}
 	}
 
 	if v, err := a.svc.Counts(ctx); err != nil {
@@ -87,6 +93,8 @@ func (a *App) applyRefresh(r refreshResult, seq uint64, async bool) {
 	}
 	if r.galleries != nil {
 		a.galleries = r.galleries
+	}
+	if r.withCovers {
 		a.coverBitmaps = r.covers
 	}
 	if r.counts != nil {

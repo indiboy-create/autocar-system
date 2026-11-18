@@ -21,7 +21,7 @@ func (a *App) sidebar(c *myui.Context) {
 			})
 		})
 
-		myui.Scroll(c.Key("nav")).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
+		myui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
 			a.navItemKey(c, "nav-series-query", iconCatalog, i18n.T("车型查询"), "seriesQuery")
 			a.navItemKey(c, "nav-series-filter", iconSync, i18n.T("筛选查询"), "seriesFilter")
 

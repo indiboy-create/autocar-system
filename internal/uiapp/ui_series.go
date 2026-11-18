@@ -31,7 +31,10 @@ func (a *App) renderSeriesQuery(c *myui.Context) {
 
 	a.settingsGroup(c, func() {
 		a.settingsRow(c, i18n.T("关键词"), i18n.T("按车系名称、拼音或 ID 查询"), func() {
-			myui.TextInput(c.Key("series-query-keyword"), &a.seriesQueryKeyword).Placeholder(i18n.T("输入关键词")).Width(240)
+			if myui.TextInput(c.Key("series-query-keyword"), &a.seriesQueryKeyword).Placeholder(i18n.T("输入关键词")).Label(i18n.T("输入关键词")).Width(240).Submitted() {
+				a.seriesQueryLoaded = false
+				a.Refresh()
+			}
 			if myui.Button(c.Key("series-query-run"), i18n.T("查询")).Clicked() {
 				a.seriesQueryLoaded = false
 				a.Refresh()
@@ -66,12 +69,12 @@ func (a *App) renderSeriesFilter(c *myui.Context) {
 
 	a.settingsGroup(c, func() {
 		a.settingsRow(c, i18n.T("品牌 / 厂商 ID"), i18n.T("只查询指定品牌或厂商的车系"), func() {
-			myui.TextInput(c.Key("series-filter-brand"), &a.seriesFilterBrandID).Placeholder(i18n.T("品牌 ID")).Width(110)
-			myui.TextInput(c.Key("series-filter-firm"), &a.seriesFilterFirmID).Placeholder(i18n.T("厂商 ID")).Width(110)
+			myui.TextInput(c.Key("series-filter-brand"), &a.seriesFilterBrandID).Placeholder(i18n.T("品牌 ID")).Label(i18n.T("品牌 ID")).Width(110)
+			myui.TextInput(c.Key("series-filter-firm"), &a.seriesFilterFirmID).Placeholder(i18n.T("厂商 ID")).Label(i18n.T("厂商 ID")).Width(110)
 		})
 		a.settingsRow(c, i18n.T("级别 / 能源"), i18n.T("级别支持模糊匹配"), func() {
-			myui.TextInput(c.Key("series-filter-level"), &a.seriesFilterLevel).Placeholder(i18n.T("级别，如 SUV")).Width(140)
-			myui.Select(c.Key("series-filter-energy"), &a.seriesFilterEnergy, []string{i18n.T("全部"), i18n.T("新能源"), i18n.T("燃油")}).Width(110)
+			myui.TextInput(c.Key("series-filter-level"), &a.seriesFilterLevel).Placeholder(i18n.T("级别，如 SUV")).Label(i18n.T("级别，如 SUV")).Width(140)
+			myui.Select(c.Key("series-filter-energy"), &a.seriesFilterEnergy, []string{i18n.T("全部"), i18n.T("新能源"), i18n.T("燃油")}).Label(i18n.T("能源")).Width(110)
 		})
 		a.settingsRow(c, "", "", func() {
 			if myui.Button(c.Key("series-filter-run"), i18n.T("查询")).Clicked() {

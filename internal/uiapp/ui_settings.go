@@ -74,6 +74,7 @@ func (a *App) settingsView(c *myui.Context) {
 			main.Children(func() {
 				pad := float32(46)
 				myui.Scroll(c.Key("settings-page-"+a.settingsPage)).
+					TrackScroll(&a.settingsScroll).
 					Grow(1).
 					Padding(pad+4, 28, 28, 28).
 					Gap(10).
