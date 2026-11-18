@@ -402,7 +402,7 @@ func saveRaw(root string, endpoint string, key string, data []byte) error {
 		return err
 	}
 	cleanKey := strings.NewReplacer("/", "_", "\\", "_", ":", "_").Replace(key)
-	return os.WriteFile(filepath.Join(dir, cleanKey+".json"), data, 0o644)
+	return writeFileAtomic(filepath.Join(dir, cleanKey+".json"), data, 0o644)
 }
 
 func (r *runner) bump(stage string, inserted bool, failed bool) {

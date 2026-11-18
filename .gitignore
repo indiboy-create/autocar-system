@@ -1,4 +1,5 @@
-/build/
+/build/*
+!/build/installer.nsh
 /dist/
 /data/
 /media/

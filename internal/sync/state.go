@@ -72,9 +72,51 @@ func SaveState(path string, state State) error {
 	if err != nil {
 		return fmt.Errorf("序列化同步状态失败: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := writeFileAtomic(path, data, 0o644); err != nil {
 		return fmt.Errorf("写入同步状态失败: %w", err)
 	}
+	return nil
+}
+
+// writeFileAtomic 把数据先写进同目录的临时文件，再替换目标文件，避免进程在
+// 写入中途崩溃时留下被截断的目标文件。Windows 上 os.Rename 不能覆盖已存在的
+// 文件，因此 rename 前先移走原文件；若 rename 失败则尽力把原文件恢复回去。
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".tmp-"+filepath.Base(path)+"-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	backup := tmpName + ".old"
+	os.Remove(backup) // 忽略上一次崩溃残留
+	if err := os.Rename(path, backup); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		// 尽力回滚：把旧文件放回原路径
+		os.Rename(backup, path)
+		return err
+	}
+	os.Remove(backup)
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"autocarsystem/internal/i18n"
 	"context"
 	"fmt"
 	"os"
@@ -13,7 +14,7 @@ import (
 func (s *Service) ScanOrphanGalleryDirs(ctx context.Context) ([]string, error) {
 	rows, err := s.store.Query(ctx, "SELECT series_id, id FROM gallery")
 	if err != nil {
-		return nil, fmt.Errorf("读取图集目录引用失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取图集目录引用失败"), err)
 	}
 	known := make(map[string]bool, len(rows.Values))
 	for _, v := range rows.Values {
@@ -31,12 +32,12 @@ func (s *Service) ScanOrphanGalleryDirs(ctx context.Context) ([]string, error) {
 		if os.IsNotExist(err) {
 			return []string{}, nil
 		}
-		return nil, fmt.Errorf("访问图集媒体目录失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("访问图集媒体目录失败"), err)
 	}
 
 	seriesEntries, err := os.ReadDir(root)
 	if err != nil {
-		return nil, fmt.Errorf("扫描图集媒体目录失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("扫描图集媒体目录失败"), err)
 	}
 
 	orphans := make([]string, 0)
@@ -47,7 +48,7 @@ func (s *Service) ScanOrphanGalleryDirs(ctx context.Context) ([]string, error) {
 		seriesDir := filepath.Join(root, seriesEntry.Name())
 		galleryEntries, err := os.ReadDir(seriesDir)
 		if err != nil {
-			return nil, fmt.Errorf("扫描车系图集目录失败: %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("扫描车系图集目录失败"), err)
 		}
 		for _, galleryEntry := range galleryEntries {
 			if !galleryEntry.IsDir() {
@@ -77,7 +78,7 @@ func (s *Service) CleanupOrphanGalleryDirs(ctx context.Context) (int, error) {
 		if err := os.RemoveAll(target); err != nil {
 			_ = media.AppendError(s.paths.MediaError, "cleanup-orphan-gallery-dir", target, err)
 			if firstErr == nil {
-				firstErr = fmt.Errorf("清理孤儿目录失败 %s: %w", rel, err)
+				firstErr = fmt.Errorf("%s %s: %w", i18n.T("清理孤儿目录失败"), rel, err)
 			}
 			continue
 		}

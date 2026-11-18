@@ -7,6 +7,7 @@ import (
 
 	"autocarsystem/internal/config"
 	"autocarsystem/internal/domain"
+	"autocarsystem/internal/i18n"
 	"autocarsystem/internal/store"
 
 	"github.com/egoist/mygo/plugins/sqlite"
@@ -24,7 +25,7 @@ func New(st *store.Store, paths config.Paths) *Service {
 func (s *Service) Bootstrap(ctx context.Context) error {
 	rows, err := s.store.Query(ctx, "SELECT COUNT(*) FROM category")
 	if err != nil {
-		return fmt.Errorf("读取分类数量失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("读取分类数量失败"), err)
 	}
 	if len(rows.Values) > 0 && len(rows.Values[0]) > 0 {
 		if count, ok := rows.Values[0][0].(int64); ok && count > 0 {
@@ -41,7 +42,7 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 		})
 	}
 	if _, err := s.store.Transaction(ctx, statements); err != nil {
-		return fmt.Errorf("初始化默认分类失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("初始化默认分类失败"), err)
 	}
 	return nil
 }
@@ -49,7 +50,7 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 func (s *Service) ListCategories(ctx context.Context) ([]domain.Category, error) {
 	rows, err := s.store.Query(ctx, "SELECT id, name, sort, enabled FROM category ORDER BY sort, id")
 	if err != nil {
-		return nil, fmt.Errorf("读取分类失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取分类失败"), err)
 	}
 
 	categories := make([]domain.Category, 0, len(rows.Values))
@@ -70,11 +71,11 @@ func (s *Service) ListCategories(ctx context.Context) ([]domain.Category, error)
 func (s *Service) CreateCategory(ctx context.Context, name string, sort int) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return fmt.Errorf("分类名称不能为空")
+		return fmt.Errorf("%s", i18n.T("分类名称不能为空"))
 	}
 	_, err := s.store.Execute(ctx, "INSERT INTO category(name, sort, enabled) VALUES (?, ?, 1)", name, sort)
 	if err != nil {
-		return fmt.Errorf("新增分类失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("新增分类失败"), err)
 	}
 	return nil
 }
@@ -86,7 +87,7 @@ func (s *Service) SetCategoryEnabled(ctx context.Context, id int64, enabled bool
 	}
 	_, err := s.store.Execute(ctx, "UPDATE category SET enabled = ? WHERE id = ?", value, id)
 	if err != nil {
-		return fmt.Errorf("设置分类状态失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("设置分类状态失败"), err)
 	}
 	return nil
 }
@@ -94,13 +95,13 @@ func (s *Service) SetCategoryEnabled(ctx context.Context, id int64, enabled bool
 func (s *Service) DeleteCategory(ctx context.Context, id int64) error {
 	rows, err := s.store.Query(ctx, "SELECT COUNT(*) FROM youvision WHERE category_id = ?", id)
 	if err != nil {
-		return fmt.Errorf("检查分类引用失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("检查分类引用失败"), err)
 	}
 	if len(rows.Values) > 0 && len(rows.Values[0]) > 0 && valueInt64(rows.Values[0][0]) > 0 {
-		return fmt.Errorf("该分类下存在版型，禁止删除")
+		return fmt.Errorf("%s", i18n.T("该分类下存在版型，禁止删除"))
 	}
 	if _, err := s.store.Execute(ctx, "DELETE FROM category WHERE id = ?", id); err != nil {
-		return fmt.Errorf("删除分类失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("删除分类失败"), err)
 	}
 	return nil
 }
@@ -111,7 +112,7 @@ func (s *Service) Counts(ctx context.Context) (map[string]int64, error) {
 	for _, table := range tables {
 		rows, err := s.store.Query(ctx, "SELECT COUNT(*) FROM "+table)
 		if err != nil {
-			return nil, fmt.Errorf("统计 %s 失败: %w", table, err)
+			return nil, fmt.Errorf("%s %s %s: %w", i18n.T("统计"), table, i18n.T("失败"), err)
 		}
 		result[table] = 0
 		if len(rows.Values) > 0 && len(rows.Values[0]) > 0 {

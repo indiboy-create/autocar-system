@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"autocarsystem/internal/domain"
+	"autocarsystem/internal/i18n"
 )
 
 func (s *Service) ListBackups() ([]domain.BackupInfo, error) {
@@ -19,7 +20,7 @@ func (s *Service) ListBackups() ([]domain.BackupInfo, error) {
 		if os.IsNotExist(err) {
 			return []domain.BackupInfo{}, nil
 		}
-		return nil, fmt.Errorf("读取备份目录失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取备份目录失败"), err)
 	}
 
 	items := make([]domain.BackupInfo, 0, len(entries))

@@ -132,19 +132,20 @@ build/installer.nsh
 安装器行为：
 
 ```text
-默认安装到 D:\autoCarSystem
+默认安装到 %LOCALAPPDATA%\Programs\autoCarSystem（用户目录，不固定在某个盘符）
+安装时可选择其他目录，再次安装会记住上次的位置
 data / media 位于安装目录（即主程序同级目录）
 不写入任何环境变量
-卸载时把 data / media 备份到 D:\autoCarSystem-preserved
+卸载时把 data / media 备份到 %APPDATA%\autoCarSystem-preserved
 再次安装时恢复备份
 ```
 
 ## 数据目录
 
-根目录始终为**主程序所在目录**，例如主程序在 `D:\autoCarSystem\autoCarSystem.exe`：
+根目录始终为**主程序所在目录**，例如主程序在 `%LOCALAPPDATA%\Programs\autoCarSystem\autoCarSystem.exe`：
 
 ```text
-D:\autoCarSystem\
+%LOCALAPPDATA%\Programs\autoCarSystem\
   autoCarSystem.exe
 
   data\

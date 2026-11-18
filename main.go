@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"autocarsystem/internal/config"
+	"autocarsystem/internal/i18n"
 	"autocarsystem/internal/service"
 	"autocarsystem/internal/store"
 	"autocarsystem/internal/uiapp"
@@ -77,7 +78,7 @@ func main() {
 			ToolTip: "autoCarSystem",
 			Menu: mygo.NewMenu([]*mygo.MenuItem{
 				{
-					Label: "显示 / 隐藏主窗口",
+					Label: i18n.T("显示 / 隐藏主窗口"),
 					Click: func(*mygo.MenuItem, *mygo.Window) {
 						if win.IsVisible() {
 							win.Hide()

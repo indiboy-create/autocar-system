@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"autocarsystem/internal/domain"
+	"autocarsystem/internal/i18n"
 	"autocarsystem/internal/media"
 )
 
 func (s *Service) CreateYuvision(ctx context.Context, brandID int64, firmID int64, seriesID int64, categoryID int64, name string, description string) (int64, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return 0, fmt.Errorf("版型名称不能为空")
+		return 0, fmt.Errorf("%s", i18n.T("版型名称不能为空"))
 	}
 
 	ok, err := s.exists(ctx, "SELECT 1 FROM series WHERE id = ? AND brand_id = ? AND firm_id = ?", seriesID, brandID, firmID)
@@ -24,7 +25,7 @@ func (s *Service) CreateYuvision(ctx context.Context, brandID int64, firmID int6
 		return 0, err
 	}
 	if !ok {
-		return 0, fmt.Errorf("车系不存在或归属不匹配")
+		return 0, fmt.Errorf("%s", i18n.T("车系不存在或归属不匹配"))
 	}
 
 	ok, err = s.exists(ctx, "SELECT 1 FROM category WHERE id = ? AND enabled = 1", categoryID)
@@ -32,7 +33,7 @@ func (s *Service) CreateYuvision(ctx context.Context, brandID int64, firmID int6
 		return 0, err
 	}
 	if !ok {
-		return 0, fmt.Errorf("分类不存在或已禁用")
+		return 0, fmt.Errorf("%s", i18n.T("分类不存在或已禁用"))
 	}
 
 	now := time.Now().Format(time.RFC3339)
@@ -43,7 +44,7 @@ INSERT INTO youvision(
 ) VALUES (?, ?, ?, ?, ?, '', '[]', ?, ?, ?)
 `, brandID, firmID, seriesID, categoryID, name, description, now, now)
 	if err != nil {
-		return 0, fmt.Errorf("新增版型失败: %w", err)
+		return 0, fmt.Errorf("%s: %w", i18n.T("新增版型失败"), err)
 	}
 	return result.LastInsertID, nil
 }
@@ -57,7 +58,7 @@ ORDER BY updated_at DESC, id DESC
 LIMIT ?
 `, limit)
 	if err != nil {
-		return nil, fmt.Errorf("读取版型失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取版型失败"), err)
 	}
 
 	items := make([]domain.Yuvision, 0, len(rows.Values))
@@ -85,7 +86,7 @@ LIMIT ?
 func (s *Service) UpdateYuvisionText(ctx context.Context, id int64, name string, description string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return fmt.Errorf("版型名称不能为空")
+		return fmt.Errorf("%s", i18n.T("版型名称不能为空"))
 	}
 	_, err := s.store.Execute(ctx,
 		"UPDATE youvision SET name = ?, description = ?, updated_at = ? WHERE id = ?",
@@ -95,7 +96,7 @@ func (s *Service) UpdateYuvisionText(ctx context.Context, id int64, name string,
 		id,
 	)
 	if err != nil {
-		return fmt.Errorf("更新版型失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("更新版型失败"), err)
 	}
 	return nil
 }
@@ -106,10 +107,10 @@ func (s *Service) DeleteYuvision(ctx context.Context, id int64) error {
 		return err
 	}
 	if ok {
-		return fmt.Errorf("该版型下存在图集，禁止删除")
+		return fmt.Errorf("%s", i18n.T("该版型下存在图集，禁止删除"))
 	}
 	if _, err := s.store.Execute(ctx, "DELETE FROM youvision WHERE id = ?", id); err != nil {
-		return fmt.Errorf("删除版型失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("删除版型失败"), err)
 	}
 	return nil
 }
@@ -117,7 +118,7 @@ func (s *Service) DeleteYuvision(ctx context.Context, id int64) error {
 func (s *Service) CreateGallery(ctx context.Context, yuvisionID int64, title string) (int64, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
-		return 0, fmt.Errorf("图集标题不能为空")
+		return 0, fmt.Errorf("%s", i18n.T("图集标题不能为空"))
 	}
 
 	yuvision, err := s.getYuvision(ctx, yuvisionID)
@@ -141,7 +142,7 @@ INSERT INTO gallery(
 		now,
 	)
 	if err != nil {
-		return 0, fmt.Errorf("新增图集失败: %w", err)
+		return 0, fmt.Errorf("%s: %w", i18n.T("新增图集失败"), err)
 	}
 	return result.LastInsertID, nil
 }
@@ -155,7 +156,7 @@ ORDER BY updated_at DESC, id DESC
 LIMIT ?
 `, limit)
 	if err != nil {
-		return nil, fmt.Errorf("读取图集失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取图集失败"), err)
 	}
 
 	items := make([]domain.Gallery, 0, len(rows.Values))
@@ -184,7 +185,7 @@ LIMIT ?
 func (s *Service) UpdateGalleryTitle(ctx context.Context, id int64, title string) error {
 	title = strings.TrimSpace(title)
 	if title == "" {
-		return fmt.Errorf("图集标题不能为空")
+		return fmt.Errorf("%s", i18n.T("图集标题不能为空"))
 	}
 	_, err := s.store.Execute(ctx,
 		"UPDATE gallery SET title = ?, updated_at = ? WHERE id = ?",
@@ -193,7 +194,7 @@ func (s *Service) UpdateGalleryTitle(ctx context.Context, id int64, title string
 		id,
 	)
 	if err != nil {
-		return fmt.Errorf("更新图集失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("更新图集失败"), err)
 	}
 	return nil
 }
@@ -204,7 +205,7 @@ func (s *Service) DeleteGallery(ctx context.Context, id int64) error {
 		return err
 	}
 	if _, err := s.store.Execute(ctx, "DELETE FROM gallery WHERE id = ?", id); err != nil {
-		return fmt.Errorf("删除图集失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("删除图集失败"), err)
 	}
 
 	dir := filepath.Join(s.paths.Gallery, fmt.Sprint(gallery.SeriesID), fmt.Sprint(gallery.ID))
@@ -261,7 +262,7 @@ func (s *Service) AddYuvisionImage(ctx context.Context, id int64, srcPath string
 			_ = media.RemoveFile(thumbAbs)
 			_ = media.AppendError(s.paths.MediaError, "rollback-yuvision-image", saved.AbsPath, err)
 		}
-		return "", fmt.Errorf("更新版型图片失败: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("更新版型图片失败"), err)
 	}
 	return saved.RelPath, nil
 }
@@ -314,7 +315,7 @@ func (s *Service) AddGalleryImage(ctx context.Context, id int64, srcPath string)
 			_ = media.RemoveFile(thumbAbs)
 			_ = media.AppendError(s.paths.MediaError, "rollback-gallery-image", saved.AbsPath, err)
 		}
-		return "", fmt.Errorf("更新图集图片失败: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("更新图集图片失败"), err)
 	}
 	return saved.RelPath, nil
 }
@@ -329,7 +330,7 @@ func (s *Service) RemoveYuvisionImage(ctx context.Context, id int64, relPath str
 		return err
 	}
 	if !containsString(images, relPath) {
-		return fmt.Errorf("图片不属于该版型")
+		return fmt.Errorf("%s", i18n.T("图片不属于该版型"))
 	}
 
 	remaining := make([]string, 0, len(images))
@@ -357,7 +358,7 @@ func (s *Service) RemoveYuvisionImage(ctx context.Context, id int64, relPath str
 		time.Now().Format(time.RFC3339),
 		id,
 	); err != nil {
-		return fmt.Errorf("移除版型图片失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("移除版型图片失败"), err)
 	}
 
 	base := filepath.Join(s.paths.Yuvision, fmt.Sprint(item.SeriesID), fmt.Sprint(item.ID))
@@ -382,7 +383,7 @@ func (s *Service) RemoveGalleryImage(ctx context.Context, id int64, relPath stri
 		return err
 	}
 	if !containsString(images, relPath) {
-		return fmt.Errorf("图片不属于该图集")
+		return fmt.Errorf("%s", i18n.T("图片不属于该图集"))
 	}
 
 	remaining := make([]string, 0, len(images))
@@ -411,7 +412,7 @@ func (s *Service) RemoveGalleryImage(ctx context.Context, id int64, relPath stri
 		time.Now().Format(time.RFC3339),
 		id,
 	); err != nil {
-		return fmt.Errorf("移除图集图片失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("移除图集图片失败"), err)
 	}
 
 	base := filepath.Join(s.paths.Gallery, fmt.Sprint(item.SeriesID), fmt.Sprint(item.ID))
@@ -433,10 +434,10 @@ SELECT id, brand_id, firm_id, series_id, category_id,
 FROM youvision WHERE id = ?
 `, id)
 	if err != nil {
-		return domain.Yuvision{}, fmt.Errorf("读取版型失败: %w", err)
+		return domain.Yuvision{}, fmt.Errorf("%s: %w", i18n.T("读取版型失败"), err)
 	}
 	if len(rows.Values) == 0 || len(rows.Values[0]) < 11 {
-		return domain.Yuvision{}, fmt.Errorf("版型不存在")
+		return domain.Yuvision{}, fmt.Errorf("%s", i18n.T("版型不存在"))
 	}
 	values := rows.Values[0]
 	return domain.Yuvision{
@@ -461,10 +462,10 @@ SELECT id, youvision_id, brand_id, firm_id, series_id, category_id,
 FROM gallery WHERE id = ?
 `, id)
 	if err != nil {
-		return domain.Gallery{}, fmt.Errorf("读取图集失败: %w", err)
+		return domain.Gallery{}, fmt.Errorf("%s: %w", i18n.T("读取图集失败"), err)
 	}
 	if len(rows.Values) == 0 || len(rows.Values[0]) < 12 {
-		return domain.Gallery{}, fmt.Errorf("图集不存在")
+		return domain.Gallery{}, fmt.Errorf("%s", i18n.T("图集不存在"))
 	}
 	values := rows.Values[0]
 	return domain.Gallery{
@@ -497,7 +498,7 @@ func parseImages(value string) ([]string, error) {
 	}
 	var images []string
 	if err := json.Unmarshal([]byte(value), &images); err != nil {
-		return nil, fmt.Errorf("解析图片列表失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("解析图片列表失败"), err)
 	}
 	return images, nil
 }
@@ -505,7 +506,7 @@ func parseImages(value string) ([]string, error) {
 func marshalImages(images []string) (string, error) {
 	data, err := json.Marshal(images)
 	if err != nil {
-		return "", fmt.Errorf("序列化图片列表失败: %w", err)
+		return "", fmt.Errorf("%s: %w", i18n.T("序列化图片列表失败"), err)
 	}
 	return string(data), nil
 }

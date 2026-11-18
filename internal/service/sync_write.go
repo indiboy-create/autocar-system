@@ -1,6 +1,7 @@
 package service
 
 import (
+	"autocarsystem/internal/i18n"
 	"context"
 	"errors"
 	"fmt"
@@ -71,7 +72,7 @@ type SpecInput struct {
 
 func (s *Service) InsertBrand(ctx context.Context, in BrandInput) (bool, error) {
 	if in.ID <= 0 || in.Name == "" {
-		return false, fmt.Errorf("品牌 ID 或名称无效")
+		return false, fmt.Errorf("%s", i18n.T("品牌 ID 或名称无效"))
 	}
 	if rows, err := s.store.Query(ctx, "SELECT name FROM brand WHERE id = ?", in.ID); err != nil {
 		return false, err
@@ -85,14 +86,14 @@ INSERT OR IGNORE INTO brand(
 ) VALUES (?, ?, ?, ?, ?, ?, 0, ?)
 `, in.ID, in.Name, in.FirstLetter, in.LogoURL, in.State, in.HaveNewEnergy, nowString())
 	if err != nil {
-		return false, fmt.Errorf("插入品牌失败: %w", err)
+		return false, fmt.Errorf("%s: %w", i18n.T("插入品牌失败"), err)
 	}
 	return result.Changes > 0, nil
 }
 
 func (s *Service) InsertFirm(ctx context.Context, in FirmInput) (bool, error) {
 	if in.ID <= 0 || in.Brand <= 0 || in.Name == "" {
-		return false, fmt.Errorf("厂商 ID、品牌 ID 或名称无效")
+		return false, fmt.Errorf("%s", i18n.T("厂商 ID、品牌 ID 或名称无效"))
 	}
 	if rows, err := s.store.Query(ctx, "SELECT brand_id FROM firm WHERE id = ?", in.ID); err != nil {
 		return false, err
@@ -102,7 +103,7 @@ func (s *Service) InsertFirm(ctx context.Context, in FirmInput) (bool, error) {
 	if ok, err := s.exists(ctx, "SELECT 1 FROM brand WHERE id = ?", in.Brand); err != nil {
 		return false, err
 	} else if !ok {
-		return false, fmt.Errorf("品牌不存在: %d", in.Brand)
+		return false, fmt.Errorf("%s: %d", i18n.T("品牌不存在"), in.Brand)
 	}
 
 	result, err := s.store.Execute(ctx, `
@@ -111,14 +112,14 @@ INSERT OR IGNORE INTO firm(
 ) VALUES (?, ?, ?, ?, ?)
 `, in.ID, in.Brand, in.Name, in.Link, nowString())
 	if err != nil {
-		return false, fmt.Errorf("插入厂商失败: %w", err)
+		return false, fmt.Errorf("%s: %w", i18n.T("插入厂商失败"), err)
 	}
 	return result.Changes > 0, nil
 }
 
 func (s *Service) InsertSeries(ctx context.Context, in SeriesInput) (bool, error) {
 	if in.ID <= 0 || in.BrandID <= 0 || in.FirmID <= 0 || in.Name == "" {
-		return false, fmt.Errorf("车系 ID、归属或名称无效")
+		return false, fmt.Errorf("%s", i18n.T("车系 ID、归属或名称无效"))
 	}
 	if rows, err := s.store.Query(ctx, "SELECT brand_id, firm_id FROM series WHERE id = ?", in.ID); err != nil {
 		return false, err
@@ -130,12 +131,12 @@ func (s *Service) InsertSeries(ctx context.Context, in SeriesInput) (bool, error
 	if ok, err := s.exists(ctx, "SELECT 1 FROM brand WHERE id = ?", in.BrandID); err != nil {
 		return false, err
 	} else if !ok {
-		return false, fmt.Errorf("品牌不存在: %d", in.BrandID)
+		return false, fmt.Errorf("%s: %d", i18n.T("品牌不存在"), in.BrandID)
 	}
 	if ok, err := s.exists(ctx, "SELECT 1 FROM firm WHERE id = ?", in.FirmID); err != nil {
 		return false, err
 	} else if !ok {
-		return false, fmt.Errorf("厂商不存在: %d", in.FirmID)
+		return false, fmt.Errorf("%s: %d", i18n.T("厂商不存在"), in.FirmID)
 	}
 
 	result, err := s.store.Execute(ctx, `
@@ -150,19 +151,19 @@ INSERT OR IGNORE INTO series(
 		in.NewEnergy, in.IsForeignCar, in.Rank, in.UVRank, in.HotRank,
 		in.FuelTypes, in.CartypeName, in.Tag1, nowString())
 	if err != nil {
-		return false, fmt.Errorf("插入车系失败: %w", err)
+		return false, fmt.Errorf("%s: %w", i18n.T("插入车系失败"), err)
 	}
 	return result.Changes > 0, nil
 }
 
 func (s *Service) InsertSpec(ctx context.Context, in SpecInput) (bool, error) {
 	if in.ID <= 0 || in.SeriesID <= 0 || in.Name == "" {
-		return false, fmt.Errorf("年款 ID、车系 ID 或名称无效")
+		return false, fmt.Errorf("%s", i18n.T("年款 ID、车系 ID 或名称无效"))
 	}
 	if rows, err := s.store.Query(ctx, "SELECT brand_id, firm_id FROM series WHERE id = ?", in.SeriesID); err != nil {
 		return false, err
 	} else if len(rows.Values) == 0 || len(rows.Values[0]) < 2 {
-		return false, fmt.Errorf("车系不存在: %d", in.SeriesID)
+		return false, fmt.Errorf("%s: %d", i18n.T("车系不存在"), in.SeriesID)
 	} else {
 		in.BrandID = valueInt64(rows.Values[0][0])
 		in.FirmID = valueInt64(rows.Values[0][1])
@@ -188,7 +189,7 @@ INSERT OR IGNORE INTO spec(
 		in.ModelYear, in.BodyForm, in.PriceMin, in.PriceMax, in.NewsPrice, in.NewsID,
 		in.DealerID, in.SaleType, in.ImageURL, in.WhiteImageURL, nowString())
 	if err != nil {
-		return false, fmt.Errorf("插入年款失败: %w", err)
+		return false, fmt.Errorf("%s: %w", i18n.T("插入年款失败"), err)
 	}
 	return result.Changes > 0, nil
 }

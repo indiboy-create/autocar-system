@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"autocarsystem/internal/domain"
+	"autocarsystem/internal/i18n"
 )
 
 func (s *Service) SearchGalleries(ctx context.Context, filter domain.GalleryFilter, limit int) ([]domain.Gallery, error) {
@@ -61,7 +62,7 @@ LIMIT ?`
 
 	rows, err := s.store.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf("搜索图集失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("搜索图集失败"), err)
 	}
 
 	items := make([]domain.Gallery, 0, len(rows.Values))

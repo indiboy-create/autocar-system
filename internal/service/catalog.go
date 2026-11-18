@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"autocarsystem/internal/domain"
+	"autocarsystem/internal/i18n"
 
 	"github.com/egoist/mygo/plugins/sqlite"
 )
@@ -20,7 +21,7 @@ ORDER BY id
 LIMIT ?
 `, limit)
 	if err != nil {
-		return nil, fmt.Errorf("读取品牌失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取品牌失败"), err)
 	}
 
 	items := make([]domain.Brand, 0, len(rows.Values))
@@ -48,7 +49,7 @@ LIMIT ?
 func (s *Service) UpdateBrand(ctx context.Context, id int64, in domain.BrandEdit) error {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
-		return fmt.Errorf("品牌名称不能为空")
+		return fmt.Errorf("%s", i18n.T("品牌名称不能为空"))
 	}
 	_, err := s.store.Execute(ctx, `
 UPDATE brand
@@ -58,7 +59,7 @@ WHERE id = ?
 `, in.Name, in.FirstLetter, in.LogoURL, in.LogoLocalPath,
 		in.State, in.HaveNewEnergy, in.APISort, nowString(), id)
 	if err != nil {
-		return fmt.Errorf("更新品牌失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("更新品牌失败"), err)
 	}
 	return nil
 }
@@ -72,7 +73,7 @@ ORDER BY brand_id, id
 LIMIT ?
 `, limit)
 	if err != nil {
-		return nil, fmt.Errorf("读取厂商失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取厂商失败"), err)
 	}
 
 	items := make([]domain.Firm, 0, len(rows.Values))
@@ -99,7 +100,7 @@ LIMIT ?
 func (s *Service) UpdateFirm(ctx context.Context, id int64, in domain.FirmEdit) error {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
-		return fmt.Errorf("厂商名称不能为空")
+		return fmt.Errorf("%s", i18n.T("厂商名称不能为空"))
 	}
 	_, err := s.store.Execute(ctx, `
 UPDATE firm
@@ -107,7 +108,7 @@ SET name = ?, py = ?, link = ?, logo_url = ?, logo_local_path = ?, user_updated_
 WHERE id = ?
 `, in.Name, in.PY, in.Link, in.LogoURL, in.LogoLocalPath, nowString(), id)
 	if err != nil {
-		return fmt.Errorf("更新厂商失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("更新厂商失败"), err)
 	}
 	return nil
 }
@@ -117,7 +118,7 @@ func (s *Service) ListSeries(ctx context.Context, limit int) ([]domain.Series, e
 ORDER BY brand_id, firm_id, id
 LIMIT ?`, limit)
 	if err != nil {
-		return nil, fmt.Errorf("读取车系失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取车系失败"), err)
 	}
 	return scanSeriesRows(rows), nil
 }
@@ -140,7 +141,7 @@ WHERE id = ?
 ORDER BY brand_id, firm_id, id
 LIMIT ?`, idMatch, limit)
 		if err != nil {
-			return nil, fmt.Errorf("搜索车系失败: %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("搜索车系失败"), err)
 		}
 		return scanSeriesRows(rows), nil
 	}
@@ -150,7 +151,7 @@ WHERE name LIKE ? OR py LIKE ? OR group_name LIKE ?
 ORDER BY brand_id, firm_id, id
 LIMIT ?`, like, like, like, limit)
 	if err != nil {
-		return nil, fmt.Errorf("搜索车系失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("搜索车系失败"), err)
 	}
 	return scanSeriesRows(rows), nil
 }
@@ -201,11 +202,11 @@ func scanSeriesRows(rows sqlite.Rows) []domain.Series {
 
 // SeriesFilter 定义筛选查询参数。
 type SeriesFilter struct {
-	BrandID   int64
-	FirmID    int64
-	Level     string
-	Energy    string // "", "新能源", "燃油"
-	Limit     int
+	BrandID int64
+	FirmID  int64
+	Level   string
+	Energy  string // "", "新能源", "燃油"
+	Limit   int
 }
 
 // FilterSeries 按品牌、厂商、级别、能源类型在数据库中筛选车系。
@@ -243,7 +244,7 @@ func (s *Service) FilterSeries(ctx context.Context, f SeriesFilter) ([]domain.Se
 
 	rows, err := s.store.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf("筛选车系失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("筛选车系失败"), err)
 	}
 	return scanSeriesRows(rows), nil
 }
@@ -251,7 +252,7 @@ func (s *Service) FilterSeries(ctx context.Context, f SeriesFilter) ([]domain.Se
 func (s *Service) UpdateSeries(ctx context.Context, id int64, in domain.SeriesEdit) error {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
-		return fmt.Errorf("车系名称不能为空")
+		return fmt.Errorf("%s", i18n.T("车系名称不能为空"))
 	}
 	_, err := s.store.Execute(ctx, `
 UPDATE series
@@ -265,7 +266,7 @@ WHERE id = ?
 		in.NewEnergy, in.IsForeignCar, in.IsTop, in.FuelTypes, in.CartypeName,
 		in.Tag1, in.Rank, in.UVRank, in.HotRank, nowString(), id)
 	if err != nil {
-		return fmt.Errorf("更新车系失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("更新车系失败"), err)
 	}
 	return nil
 }
@@ -282,7 +283,7 @@ ORDER BY series_id, id
 LIMIT ?
 `, limit)
 	if err != nil {
-		return nil, fmt.Errorf("读取年款失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("读取年款失败"), err)
 	}
 
 	items := make([]domain.Spec, 0, len(rows.Values))
@@ -323,7 +324,7 @@ LIMIT ?
 func (s *Service) UpdateSpec(ctx context.Context, id int64, in domain.SpecEdit) error {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
-		return fmt.Errorf("年款名称不能为空")
+		return fmt.Errorf("%s", i18n.T("年款名称不能为空"))
 	}
 	_, err := s.store.Execute(ctx, `
 UPDATE spec
@@ -339,7 +340,7 @@ WHERE id = ?
 		in.WhiteImageURL, in.WhiteImageLocalPath, in.WhiteImageSHA256,
 		nowString(), id)
 	if err != nil {
-		return fmt.Errorf("更新年款失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("更新年款失败"), err)
 	}
 	return nil
 }
