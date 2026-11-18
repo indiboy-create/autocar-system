@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"autocarsystem/internal/domain"
+
+	"github.com/egoist/mygo/plugins/sqlite"
 )
 
 func (s *Service) ListBrands(ctx context.Context, limit int) ([]domain.Brand, error) {
@@ -111,19 +113,56 @@ WHERE id = ?
 }
 
 func (s *Service) ListSeries(ctx context.Context, limit int) ([]domain.Series, error) {
-	rows, err := s.store.Query(ctx, `
+	rows, err := s.store.Query(ctx, seriesQuerySQL+`
+ORDER BY brand_id, firm_id, id
+LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("读取车系失败: %w", err)
+	}
+	return scanSeriesRows(rows), nil
+}
+
+// SearchSeries 在数据库中按关键词搜索车系，支持名称、拼音、车组名称和 ID 匹配。
+// limit 控制返回数量上限。
+func (s *Service) SearchSeries(ctx context.Context, keyword string, limit int) ([]domain.Series, error) {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return s.ListSeries(ctx, limit)
+	}
+
+	like := "%" + keyword + "%"
+
+	// 判断是否纯数字，数字时按精确 ID 匹配
+	var idMatch int64
+	if n, err := fmt.Sscanf(keyword, "%d", &idMatch); err == nil && n == 1 && fmt.Sprintf("%d", idMatch) == keyword {
+		rows, err := s.store.Query(ctx, seriesQuerySQL+`
+WHERE id = ?
+ORDER BY brand_id, firm_id, id
+LIMIT ?`, idMatch, limit)
+		if err != nil {
+			return nil, fmt.Errorf("搜索车系失败: %w", err)
+		}
+		return scanSeriesRows(rows), nil
+	}
+
+	rows, err := s.store.Query(ctx, seriesQuerySQL+`
+WHERE name LIKE ? OR py LIKE ? OR group_name LIKE ?
+ORDER BY brand_id, firm_id, id
+LIMIT ?`, like, like, like, limit)
+	if err != nil {
+		return nil, fmt.Errorf("搜索车系失败: %w", err)
+	}
+	return scanSeriesRows(rows), nil
+}
+
+const seriesQuerySQL = `
 SELECT id, brand_id, firm_id, name, group_name, state, price_min, price_max,
        place, py, logo_url, logo_local_path, level_name, newenergy,
        is_foreign_car, is_top, fuel_types, cartypename, tag1,
        "rank", uv_rank, hot_rank, collected_at, user_updated_at, media_updated_at
-FROM series
-ORDER BY brand_id, firm_id, id
-LIMIT ?
-`, limit)
-	if err != nil {
-		return nil, fmt.Errorf("读取车系失败: %w", err)
-	}
+FROM series`
 
+func scanSeriesRows(rows sqlite.Rows) []domain.Series {
 	items := make([]domain.Series, 0, len(rows.Values))
 	for _, v := range rows.Values {
 		if len(v) < 25 {
@@ -157,7 +196,56 @@ LIMIT ?
 			MediaUpdatedAt: valueString(v[24]),
 		})
 	}
-	return items, nil
+	return items
+}
+
+// SeriesFilter 定义筛选查询参数。
+type SeriesFilter struct {
+	BrandID   int64
+	FirmID    int64
+	Level     string
+	Energy    string // "", "新能源", "燃油"
+	Limit     int
+}
+
+// FilterSeries 按品牌、厂商、级别、能源类型在数据库中筛选车系。
+func (s *Service) FilterSeries(ctx context.Context, f SeriesFilter) ([]domain.Series, error) {
+	var (
+		conditions []string
+		args       []any
+	)
+
+	if f.BrandID != 0 {
+		conditions = append(conditions, "brand_id = ?")
+		args = append(args, f.BrandID)
+	}
+	if f.FirmID != 0 {
+		conditions = append(conditions, "firm_id = ?")
+		args = append(args, f.FirmID)
+	}
+	if level := strings.TrimSpace(f.Level); level != "" {
+		conditions = append(conditions, "LOWER(level_name) LIKE ?")
+		args = append(args, "%"+strings.ToLower(level)+"%")
+	}
+	switch f.Energy {
+	case "新能源":
+		conditions = append(conditions, "newenergy != 0")
+	case "燃油":
+		conditions = append(conditions, "newenergy = 0")
+	}
+
+	sql := seriesQuerySQL
+	if len(conditions) > 0 {
+		sql += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	sql += "\nORDER BY brand_id, firm_id, id\nLIMIT ?"
+	args = append(args, f.Limit)
+
+	rows, err := s.store.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("筛选车系失败: %w", err)
+	}
+	return scanSeriesRows(rows), nil
 }
 
 func (s *Service) UpdateSeries(ctx context.Context, id int64, in domain.SeriesEdit) error {

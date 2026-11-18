@@ -170,10 +170,14 @@ type App struct {
 	orphanDirs     []string
 
 	seriesQueryKeyword  string
+	seriesQueryResults  []domain.Series
+	seriesQueryLoaded   bool
 	seriesFilterBrandID string
 	seriesFilterFirmID  string
 	seriesFilterLevel   string
 	seriesFilterEnergy  string
+	seriesFilterResults []domain.Series
+	seriesFilterLoaded  bool
 	yuvFilterCategory   int64
 	underTop            bool
 	settingsUnderTop    bool
@@ -395,11 +399,20 @@ func (a *App) View(c *myui.Context) {
 	a.applyTheme(c)
 	p := paletteFor(c.Theme().Dark)
 
-	root := myui.Box(c).Fill().Background(p.bg)
+	if c.Vibrancy() {
+		c.Root().Background(myui.Transparent)
+	}
+	root := myui.Box(c).Fill()
+	if !c.Vibrancy() {
+		root.Background(p.bg)
+	}
 	root.Children(func() {
 		page := myui.Row(c).Fill().AlignItems(myui.Stretch)
 		page.Children(func() {
-			side := myui.Column(c).Width(232).Background(p.sidebar).LinearGradient(sidebarGradient(c.Theme().Dark))
+			side := myui.Column(c).Width(232)
+			if !c.Vibrancy() {
+				side.Background(p.sidebar).LinearGradient(sidebarGradient(c.Theme().Dark))
+			}
 			side.Children(func() {
 				a.sidebar(c)
 			})
@@ -619,7 +632,7 @@ func (a *App) openSettings() {
 		TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
 		AutoHideMenuBar:      true,
 		StateKey:             "autocarsystem-settings",
-		BackgroundColor:      "light-dark(#f4f4f6, #1c1c1f)",
+		Vibrancy:             mygo.VibrancySidebar,
 		Content:              myui.View(a.settingsView),
 	})
 	win.OnClosed(func() {
@@ -634,11 +647,20 @@ func (a *App) settingsView(c *myui.Context) {
 	a.applyTheme(c)
 	p := paletteFor(c.Theme().Dark)
 
-	root := myui.Box(c).Fill().Background(p.bg)
+	if c.Vibrancy() {
+		c.Root().Background(myui.Transparent)
+	}
+	root := myui.Box(c).Fill()
+	if !c.Vibrancy() {
+		root.Background(p.bg)
+	}
 	root.Children(func() {
 		page := myui.Row(c).Fill().AlignItems(myui.Stretch)
 		page.Children(func() {
-			side := myui.Column(c).Width(176).Background(p.sidebar)
+			side := myui.Column(c).Width(176)
+			if !c.Vibrancy() {
+				side.Background(p.sidebar)
+			}
 			side.Children(func() {
 				myui.Column(c).Fill().Padding(18, 12, 14, 12).Gap(2).DragWindow().Children(func() {
 					myui.Text(c, i18n.T("设置")).FontSize(18).FontWeight(700).TextColor(p.text).Margin(0, 0, 16, 8)
@@ -1013,22 +1035,29 @@ func (a *App) renderSeriesQuery(c *myui.Context) {
 		a.settingsRow(c, i18n.T("关键词"), i18n.T("按车系名称、拼音或 ID 查询"), func() {
 			myui.TextInput(c.Key("series-query-keyword"), &a.seriesQueryKeyword).Placeholder(i18n.T("输入关键词")).Width(240)
 			if myui.Button(c.Key("series-query-run"), i18n.T("查询")).Clicked() {
+				a.seriesQueryLoaded = false
 				a.Refresh()
 			}
 		})
 	})
 
-	keyword := strings.ToLower(strings.TrimSpace(a.seriesQueryKeyword))
-	matched := make([]domain.Series, 0, len(a.series))
-	for _, item := range a.series {
-		if keyword == "" {
-			matched = append(matched, item)
-			continue
+	keyword := strings.TrimSpace(a.seriesQueryKeyword)
+	if keyword != "" && !a.seriesQueryLoaded {
+		ctx := context.Background()
+		if results, err := a.svc.SearchSeries(ctx, keyword, 200); err == nil {
+			a.seriesQueryResults = results
+		} else {
+			a.setStatus(err.Error())
+			a.seriesQueryResults = nil
 		}
-		text := strings.ToLower(item.Name + " " + item.PY + " " + item.GroupName + " " + strconv.FormatInt(item.ID, 10))
-		if strings.Contains(text, keyword) {
-			matched = append(matched, item)
-		}
+		a.seriesQueryLoaded = true
+	}
+
+	var matched []domain.Series
+	if keyword == "" {
+		matched = a.series
+	} else if a.seriesQueryLoaded {
+		matched = a.seriesQueryResults
 	}
 	a.renderSeriesResults(c, matched)
 }
@@ -1048,6 +1077,7 @@ func (a *App) renderSeriesFilter(c *myui.Context) {
 		})
 		a.settingsRow(c, "", "", func() {
 			if myui.Button(c.Key("series-filter-run"), i18n.T("查询")).Clicked() {
+				a.seriesFilterLoaded = false
 				a.Refresh()
 			}
 		})
@@ -1063,30 +1093,24 @@ func (a *App) renderSeriesFilter(c *myui.Context) {
 	}
 	level := strings.ToLower(strings.TrimSpace(a.seriesFilterLevel))
 
-	matched := make([]domain.Series, 0, len(a.series))
-	for _, item := range a.series {
-		if brandID != 0 && item.BrandID != brandID {
-			continue
+	if !a.seriesFilterLoaded {
+		ctx := context.Background()
+		if results, err := a.svc.FilterSeries(ctx, service.SeriesFilter{
+			BrandID: brandID,
+			FirmID:  firmID,
+			Level:   level,
+			Energy:  a.seriesFilterEnergy,
+			Limit:   200,
+		}); err == nil {
+			a.seriesFilterResults = results
+		} else {
+			a.setStatus(err.Error())
+			a.seriesFilterResults = nil
 		}
-		if firmID != 0 && item.FirmID != firmID {
-			continue
-		}
-		if level != "" && !strings.Contains(strings.ToLower(item.LevelName), level) {
-			continue
-		}
-		switch a.seriesFilterEnergy {
-		case i18n.T("新能源"):
-			if item.NewEnergy == 0 {
-				continue
-			}
-		case i18n.T("燃油"):
-			if item.NewEnergy != 0 {
-				continue
-			}
-		}
-		matched = append(matched, item)
+		a.seriesFilterLoaded = true
 	}
-	a.renderSeriesResults(c, matched)
+
+	a.renderSeriesResults(c, a.seriesFilterResults)
 }
 
 func (a *App) renderSeriesResults(c *myui.Context, items []domain.Series) {

@@ -56,6 +56,7 @@ func main() {
 			TitleBarHeight:       46,
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
 			AutoHideMenuBar:      true,
+			Vibrancy:             mygo.VibrancySidebar,
 			Content:              ui.View(app.View),
 		})
 		app.AttachWindow(win)
