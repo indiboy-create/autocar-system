@@ -5,6 +5,8 @@
 /media/
 /music/
 .mygo/
+.vscode
+.workbuddy/
 .workbuddy-ai/
 ScreenShot_*.png
 *.exe

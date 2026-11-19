@@ -60,3 +60,20 @@ func TestLoadPrefsMissingReturnsDefaults(t *testing.T) {
 		t.Fatalf("got %+v, want defaults", got)
 	}
 }
+
+func TestDefaultPrefsEnableAutoUpdates(t *testing.T) {
+	p := DefaultPrefs()
+	if !p.AutoCheckUpdates || !p.AutoInstallUpdates {
+		t.Fatalf("auto updates should be enabled by default: %+v", p)
+	}
+}
+
+func TestDefaultPrefsEnableAutoBackup(t *testing.T) {
+	p := DefaultPrefs()
+	if !p.AutoBackup {
+		t.Fatalf("auto backup should be enabled by default: %+v", p)
+	}
+	if p.BackupIntervalHours != 72 {
+		t.Fatalf("backup interval = %d hours, want 72", p.BackupIntervalHours)
+	}
+}

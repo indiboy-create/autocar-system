@@ -1,93 +1,112 @@
 package uiapp
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	"autocarsystem/internal/i18n"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
+	"github.com/egoist/mygo/plugins/updater/native"
+	myui "github.com/egoist/mygo/ui"
 )
 
-// 更新能力由构建时的 mygo.json updates 配置决定。这两个接缝便于测试覆盖
-// “已配置/未配置”两条路径；默认走 mygo 的真实实现。
+// 更新的检查、下载与安装全部交给 MyGo 内置的 updater 插件（原生 UI 更新窗口）。
+// 这些接缝指向插件函数；插件未注册时这些函数会 panic，测试需替换为替身。
 var (
-	updatesEnabled = func() bool { return mygo.Updater.Enabled() }
-	checkForUpdate = func(ctx context.Context) (*mygo.Update, error) { return mygo.Updater.Check(ctx) }
-	installUpdate  = func(ctx context.Context, u *mygo.Update) error { return u.Install(ctx, nil) }
+	checkForUpdates    = updater.CheckForUpdates
+	updateChecks       = updater.AutomaticChecks
+	setUpdateChecks    = updater.SetAutomaticChecks
+	updateDownloads    = updater.AutomaticDownloads
+	setUpdateDownloads = updater.SetAutomaticDownloads
+	lastUpdateCheck    = updater.LastCheck
 )
 
-// updateCheckInterval 是自动检查更新的最小间隔。
-const updateCheckInterval = 24 * time.Hour
-
-// postSettingsUpdate 把更新结果送回设置窗口线程；无窗口（测试）时直接执行。
-func (a *App) postSettingsUpdate(fn func()) {
-	if a.settingsWin != nil {
-		a.settingsWin.Update(fn)
-		return
+// pluginLanguage 把应用语言映射为更新窗口使用的语言标签。
+func pluginLanguage() string {
+	if i18n.Current() == i18n.English {
+		return "en"
 	}
-	fn()
+	return "zh-Hans"
 }
 
-// AutoCheckUpdates 在启动时按偏好做一次每日更新检查：最近检查过就跳过，
-// 检查成功后把结果显示在更新设置页；开启自动下载时在后台安装新版本。
-// 必须在主线程调用（WhenReady 内）。
-func (a *App) AutoCheckUpdates() {
-	if !a.prefs.AutoCheckUpdates || !updatesEnabled() {
+// UseUpdater 注册 updater 原生插件：启动约 10 秒后首次检查、之后每天一次，
+// 发现新版本时按偏好在独立更新窗口中提示或直接后台安装。必须在 App.Run 之前调用。
+func (a *App) UseUpdater() {
+	mygo.Use(native.New(updater.Options{Language: pluginLanguage()}))
+	a.updates = true
+	// A check or an answer in the update window changes what the settings show.
+	updater.OnChange(func() {
+		if a.settingsWin != nil {
+			a.settingsWin.Invalidate()
+		}
+	})
+	a.migrateUpdatePrefs()
+}
+
+// migrateUpdatePrefs 把旧 prefs 中的更新偏好一次性迁移到插件状态（updater.json），
+// 之后以插件状态为准，不再由 prefs 覆盖用户在更新窗口里的选择。
+func (a *App) migrateUpdatePrefs() {
+	if a.prefs.UpdatePrefsMigrated {
 		return
 	}
-	now := time.Now()
-	if last, err := time.Parse(time.RFC3339, a.prefs.LastUpdateCheck); err == nil &&
-		now.Sub(last) < updateCheckInterval {
-		return
-	}
-	// 先记录本次尝试：离线或失败时同样按每日一次节流，不在每次启动重试。
-	a.prefs.LastUpdateCheck = now.UTC().Format(time.RFC3339)
+	setUpdateChecks(a.prefs.AutoCheckUpdates)
+	setUpdateDownloads(a.prefs.AutoInstallUpdates)
+	a.prefs.UpdatePrefsMigrated = true
 	a.savePrefs()
-
-	autoInstall := a.prefs.AutoInstallUpdates
-	go func() {
-		u, err := checkForUpdate(context.Background())
-		if err != nil || u == nil {
-			return
-		}
-		if autoInstall {
-			if err := installUpdate(context.Background(), u); err != nil {
-				a.postSettingsUpdate(func() {
-					a.settingsMessage = fmt.Sprintf("%s: %s", i18n.T("检查更新失败"), err.Error())
-				})
-				return
-			}
-			a.postSettingsUpdate(func() {
-				a.settingsMessage = fmt.Sprintf(i18n.T("新版本 %s 已下载，下次启动时安装"), u.Version)
-			})
-			return
-		}
-		a.postSettingsUpdate(func() {
-			a.settingsMessage = fmt.Sprintf(i18n.T("发现新版本 %s"), u.Version)
-		})
-	}()
 }
 
-// checkUpdateNow 真正执行一次版本检查：未配置更新时给出明确说明，绝不假装可用。
-func (a *App) checkUpdateNow() {
-	if !updatesEnabled() {
-		a.settingsMessage = i18n.T("当前构建未启用自动更新")
-		return
+// renderUpdateSettings 按 mygo-music 的设置行风格展示更新设置：
+// 自动检查、自动下载、当前版本与手动检查依次排列在一个卡片中。
+func (a *App) renderUpdateSettings(c *myui.Context) {
+	checkDesc := i18n.T("每天检查一次是否有新版本")
+	if t := lastUpdateCheck(); !t.IsZero() {
+		checkDesc = fmt.Sprintf(i18n.T("每天检查一次是否有新版本。上次检查：%s"), updateCheckAgo(t))
 	}
-	a.settingsMessage = i18n.T("正在检查更新")
-	go func() {
-		u, err := checkForUpdate(context.Background())
-		a.postSettingsUpdate(func() {
-			switch {
-			case err != nil:
-				a.settingsMessage = fmt.Sprintf("%s: %s", i18n.T("检查更新失败"), err.Error())
-			case u == nil:
-				a.settingsMessage = i18n.T("已是最新版本")
-			default:
-				a.settingsMessage = fmt.Sprintf(i18n.T("发现新版本 %s"), u.Version)
+
+	a.settingsGroup(c, func() {
+		a.settingsRow(c, i18n.T("自动检查更新"), checkDesc, func() {
+			on := updateChecks()
+			if myui.Switch(c.Key("update-checks"), &on).Label(i18n.T("自动检查更新")).Changed() {
+				setUpdateChecks(on)
+				a.notifySettingSaved(i18n.T("自动检查更新"))
 			}
 		})
-	}()
+		a.settingsRow(c, i18n.T("自动下载并安装"), i18n.T("在后台下载新版本，下次打开时生效"), func() {
+			on := updateDownloads()
+			if myui.Switch(c.Key("update-downloads"), &on).Label(i18n.T("自动下载并安装")).
+				Disabled(!updateChecks()).Changed() {
+				setUpdateDownloads(on)
+				a.notifySettingSaved(i18n.T("自动下载并安装"))
+			}
+		})
+		a.settingsRow(c, fmt.Sprintf(i18n.T("当前版本 %s"), mygo.App.Version()), "", func() {
+			if myui.Button(c.Key("check-updates"), i18n.T("检查更新")).Clicked() {
+				checkForUpdates()
+			}
+		})
+	})
+}
+
+// updateCheckAgo 把上次检查时间说成相对时间，与 mygo-music 的 Ago 一致。
+func updateCheckAgo(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return i18n.T("刚刚")
+	case d < 2*time.Minute:
+		return i18n.T("一分钟前")
+	case d < time.Hour:
+		return fmt.Sprintf(i18n.T("%d 分钟前"), int(d/time.Minute))
+	case d < 2*time.Hour:
+		return i18n.T("一小时前")
+	case d < 24*time.Hour:
+		return fmt.Sprintf(i18n.T("%d 小时前"), int(d/time.Hour))
+	case d < 48*time.Hour:
+		return i18n.T("昨天")
+	case d < 30*24*time.Hour:
+		return fmt.Sprintf(i18n.T("%d 天前"), int(d/(24*time.Hour)))
+	}
+	return t.Format("2006-01-02")
 }

@@ -33,7 +33,7 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 		}
 	}
 
-	defaults := []string{"手缝把套", "软包脚垫", "通用把套", "其他版型"}
+	defaults := []string{i18n.Data("手缝把套"), i18n.Data("软包脚垫"), i18n.Data("通用把套"), i18n.Data("其他版型")}
 	statements := make([]sqlite.Statement, 0, len(defaults))
 	for i, name := range defaults {
 		statements = append(statements, sqlite.Statement{

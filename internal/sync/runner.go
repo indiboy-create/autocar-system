@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"autocarsystem/internal/config"
+	"autocarsystem/internal/i18n"
 	"autocarsystem/internal/service"
 )
 
@@ -27,6 +28,7 @@ type Config struct {
 	Delay           time.Duration
 	SaveRaw         bool
 	UserAgent       string
+	SyncSpecs       bool
 }
 
 type Progress struct {
@@ -48,6 +50,7 @@ func DefaultConfig() Config {
 		Delay:           500 * time.Millisecond,
 		SaveRaw:         true,
 		UserAgent:       "Mozilla/5.0 autoCarSystem",
+		SyncSpecs:       false,
 	}
 }
 
@@ -96,32 +99,34 @@ func RunWithConfig(ctx context.Context, svc *service.Service, paths config.Paths
 		r.fail(err)
 		return err
 	}
-	series, err := r.svc.ListSeries(ctx, 100000)
-	if err != nil {
-		r.fail(err)
-		return err
-	}
-	identities := make([]seriesIdentity, 0, len(series))
-	for _, item := range series {
-		identities = append(identities, seriesIdentity{ID: item.ID, BrandID: item.BrandID, FirmID: item.FirmID})
-	}
-	if err := r.syncSpecs(ctx, identities); err != nil {
-		r.fail(err)
-		return err
+	if r.cfg.SyncSpecs {
+		series, err := r.svc.ListSeries(ctx, 100000)
+		if err != nil {
+			r.fail(err)
+			return err
+		}
+		identities := make([]seriesIdentity, 0, len(series))
+		for _, item := range series {
+			identities = append(identities, seriesIdentity{ID: item.ID, BrandID: item.BrandID, FirmID: item.FirmID})
+		}
+		if err := r.syncSpecs(ctx, identities); err != nil {
+			r.fail(err)
+			return err
+		}
 	}
 
 	r.state.Stage = "done"
 	r.state.LastSyncAt = time.Now().Format(time.RFC3339)
 	r.saveState()
-	r.report("done", "同步完成", 0, 0)
+	r.report("done", i18n.T("同步完成"), 0, 0)
 	return nil
 }
 
 func (r *runner) syncBrands(ctx context.Context) error {
-	r.report("brand", "同步品牌", 0, 0)
+	r.report("brand", i18n.T("同步品牌"), 0, 0)
 	root, err := r.fetch(ctx, "brand", "all", r.cfg.BrandURL)
 	if err != nil {
-		return fmt.Errorf("获取品牌失败: %w", err)
+		return i18n.Errorf("获取品牌失败: %w", err)
 	}
 	result := asMap(root["result"])
 	groups := asArray(result["brand"])
@@ -140,7 +145,7 @@ func (r *runner) syncBrands(ctx context.Context) error {
 			id := toInt64(item["id"])
 			name := toText(item["name"])
 			if id <= 0 || name == "" {
-				r.conflict("brand", id, "invalid_brand", "品牌 ID 或名称无效")
+				r.conflict("brand", id, "invalid_brand", i18n.T("品牌 ID 或名称无效"))
 				r.bump("brand", false, true)
 				continue
 			}
@@ -160,7 +165,7 @@ func (r *runner) syncBrands(ctx context.Context) error {
 			r.bump("brand", inserted, false)
 		}
 	}
-	r.report("brand", "品牌同步完成", processed, total)
+	r.report("brand", i18n.T("品牌同步完成"), processed, total)
 	r.saveState()
 	return nil
 }
@@ -191,7 +196,7 @@ func (r *runner) insertFirms(ctx context.Context, brandID int64, values []any) e
 		id := toInt64(item["id"])
 		name := toText(item["name"])
 		if id <= 0 || name == "" {
-			r.conflict("firm", id, "invalid_firm", "厂商 ID 或名称无效")
+			r.conflict("firm", id, "invalid_firm", i18n.T("厂商 ID 或名称无效"))
 			r.bump("firm", false, true)
 			continue
 		}
@@ -222,12 +227,12 @@ func (r *runner) insertSeries(ctx context.Context, brandID int64, groups []any) 
 			name := toText(item["seriesName"])
 			firmID := toInt64(item["fctid"])
 			if id <= 0 || name == "" {
-				r.conflict("series", id, "invalid_series", "车系 ID 或名称无效")
+				r.conflict("series", id, "invalid_series", i18n.T("车系 ID 或名称无效"))
 				r.bump("series", false, true)
 				continue
 			}
 			if firmID <= 0 {
-				r.conflict("series", id, "missing_firm", "车系缺少有效 fctid")
+				r.conflict("series", id, "missing_firm", i18n.T("车系缺少有效 fctid"))
 				r.bump("series", false, true)
 				continue
 			}
@@ -293,7 +298,7 @@ func (r *runner) syncSpecs(ctx context.Context, series []seriesIdentity) error {
 				id := toInt64(spec["specId"])
 				name := toText(spec["specName"])
 				if id <= 0 || name == "" {
-					r.conflict("spec", id, "invalid_spec", "年款 ID 或名称无效")
+					r.conflict("spec", id, "invalid_spec", i18n.T("年款 ID 或名称无效"))
 					r.bump("spec", false, true)
 					continue
 				}
@@ -321,7 +326,7 @@ func (r *runner) syncSpecs(ctx context.Context, series []seriesIdentity) error {
 				r.bump("spec", inserted, false)
 			}
 		}
-		r.report("spec", fmt.Sprintf("年款同步 %d/%d", index+1, len(series)), index+1, len(series))
+		r.report("spec", i18n.Tf("年款同步 %d/%d", index+1, len(series)), index+1, len(series))
 	}
 	r.saveState()
 	return nil
@@ -371,17 +376,17 @@ func (r *runner) fetch(ctx context.Context, endpoint string, key string, url str
 		}
 		var root map[string]any
 		if err := json.Unmarshal(body, &root); err != nil {
-			lastErr = fmt.Errorf("解析 JSON 失败: %w", err)
+			lastErr = i18n.Errorf("解析 JSON 失败: %w", err)
 			r.sleep(ctx)
 			continue
 		}
 		if code := toInt64(root["returncode"]); code != 0 {
-			return nil, fmt.Errorf("接口返回错误码 %d: %s", code, toText(root["message"]))
+			return nil, i18n.Errorf("接口返回错误码 %d: %s", code, toText(root["message"]))
 		}
 		return root, nil
 	}
 	if lastErr == nil {
-		lastErr = errors.New("请求失败")
+		lastErr = errors.New(i18n.T("请求失败"))
 	}
 	return nil, lastErr
 }
@@ -560,9 +565,9 @@ func joinTextArray(value any) string {
 	return strings.Join(parts, ",")
 }
 
-var yearPattern = regexp.MustCompile(`(19|20)\d{2}款`)
+var yearPattern = regexp.MustCompile(i18n.Data("(19|20)\\d{2}款"))
 
 func extractModelYear(name string) string {
 	match := yearPattern.FindString(name)
-	return strings.TrimSuffix(match, "款")
+	return strings.TrimSuffix(match, i18n.Data("款"))
 }

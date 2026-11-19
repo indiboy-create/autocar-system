@@ -6,7 +6,9 @@ import (
 	"autocarsystem/internal/i18n"
 	"autocarsystem/internal/service"
 	"context"
-	"fmt"
+	"runtime"
+	"strconv"
+
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/glass"
 	myui "github.com/egoist/mygo/ui"
@@ -30,6 +32,8 @@ type palette struct {
 
 var (
 	iconCategory = strokeIcon(`<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="7" cy="6" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18" r="1"/>`)
+	iconHome     = strokeIcon(`<path d="m3 10.5 9-7.5 9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/>`)
+	iconUser     = strokeIcon(`<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>`)
 	iconCatalog  = strokeIcon(`<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>`)
 	iconSync     = strokeIcon(`<path d="M20 12a8 8 0 1 1-2.34-5.66L20 8"/><path d="M20 3v5h-5"/>`)
 	iconTransfer = strokeIcon(`<path d="M4 12a8 8 0 0 1 13.66-5.66L20 8M20 3v5h-5"/><path d="M20 12a8 8 0 0 1-13.66 5.66L4 16M4 21v-5h5"/>`)
@@ -40,6 +44,11 @@ var (
 	iconForward  = strokeIcon(`<path d="m9 18 6-6-6-6"/>`)
 	iconAbout    = strokeIcon(`<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none"/>`)
 	iconLogo     = strokeIcon(`<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L6 20"/>`)
+	iconBackup   = strokeIcon(`<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/>`)
+	iconTrash    = strokeIcon(`<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 10v7M14 10v7"/>`)
+	iconLicense  = strokeIcon(`<path d="M15 2 21 8l-9 9-6-6 9-9z"/><path d="m3 13 6 6-3 3H3v-6z"/><path d="m14 5 3 3"/><path d="m7 14 3 3"/>`)
+	iconSearch   = strokeIcon(`<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>`)
+	iconClose    = strokeIcon(`<path d="M6 6l12 12M18 6 6 18"/>`)
 )
 
 type navRoute struct {
@@ -64,15 +73,27 @@ type appNav struct {
 	page             string
 	history          []navRoute
 	forward          []navRoute
-	underTop         bool
+	underTop         bool // 内容已滚到顶栏下方
+	underBottom      bool // 内容延伸到底部栏下方
 	settingsUnderTop bool
 }
 
+// appToast 是一次性提示：Text 为正文，Kind 为 "success" 或 "error"，
+// 由设置窗口渲染时交给自定义 toast 外观显示后清空。
+type appToast struct {
+	Text string
+	Kind string
+}
+
 type appSettings struct {
-	prefs           config.Prefs
-	settingsWin     *mygo.Window
-	settingsPage    string
-	settingsMessage string
+	prefs            config.Prefs
+	settingsWin      *mygo.Window
+	settingsPage     string
+	settingsMessage  string
+	settingsQuery    string      // 设置页搜索关键字
+	settingsSearchBox myui.Handle // Cmd+F 聚焦的设置搜索框
+	toast            appToast
+	updates          bool // updater 插件已注册；决定更新页是否可用
 }
 
 type appCatalogData struct {
@@ -83,12 +104,21 @@ type appCatalogData struct {
 	counts     map[string]int64
 	backups    []domain.BackupInfo
 	gridState  myui.GridState
+	// 各实体卡片的搜索关键字与网格滚动状态。
+	brandSearch  string
+	firmSearch   string
+	seriesSearch string
+	specSearch   string
+	brandGrid    myui.GridState
+	firmGrid     myui.GridState
+	seriesGrid   myui.GridState
+	specGrid     myui.GridState
 }
 
 type appVersionDraft struct {
-	yvBrandID   string
-	yvFirmID    string
-	yvSeriesID  string
+	// 品牌 → 车型联动选中项（名称 #ID）；厂商由选中车系推导，不再单独选择。
+	yvBrand     string
+	yvSeries    string
 	yvCategory  string
 	yvName      string
 	yvDesc      string
@@ -104,15 +134,15 @@ type appGalleryDraft struct {
 }
 
 type appGalleryFilter struct {
-	gallerySearch     string
-	filterBrandID     string
-	searchBox         myui.Handle // Cmd+F 聚焦的搜索框
-	filterFirmID      string
-	filterSeriesID    string
-	filterCategory    string
-	filterYuvision    string
-	gallerySort       string
-	orphanDirs        []string
+	gallerySearch  string
+	searchBox      myui.Handle // Cmd+F 聚焦的搜索框
+	filterCategory string
+	filterYuvision string
+	gallerySort    string
+	orphanDirs     []string
+	// 品牌 → 车型联动选中项（名称 #ID），用于图集筛选。
+	filterBrand       string
+	filterSeries      string
 	yuvFilterCategory int64
 }
 
@@ -131,10 +161,13 @@ type appSeriesQuery struct {
 	seriesBrowseErr     string
 	seriesList          myui.ListState
 
-	seriesFilterBrandID string
-	seriesFilterFirmID  string
-	seriesFilterLevel   string
+	// 品牌 → 车型两级联动下拉的选中项，存的是选项文本（名称 #ID），
+	// i18n 的“全部”表示不限；ID 在 runSeriesFilter 中解析。
+	seriesFilterBrand   string
+	seriesFilterSeries  string
+	seriesFilterLevel   string // 级别下拉的显示文案，在 runSeriesFilter 中映射为匹配关键词
 	seriesFilterEnergy  string
+	seriesFilterKeyword string // 关键字框：匹配车系名称 / 拼音 / 车组 / ID
 	seriesFilterResults []domain.Series
 	seriesFilterLoaded  bool
 	seriesFilterLoading bool
@@ -261,6 +294,7 @@ func New(svc *service.Service, paths config.Paths) *App {
 	}
 	i18n.Set(prefs.Language)
 	applyAppearance(prefs.Appearance)
+	setColorScheme(prefs.ColorScheme)
 	page := prefs.DefaultPage
 	switch page {
 	case "gallery", "youvision", "catalog", "seriesQuery", "seriesFilter":
@@ -426,6 +460,12 @@ func (a *App) fillsViewport() bool {
 	return a.page == "seriesQuery" || a.page == "seriesFilter"
 }
 
+// plainViewport 报告页面是否整页滚动、不带顶部或底部悬浮元素：
+// 首页与用户中心参考 mygo-music 首页，内容可一直滚到窗口边缘。
+func (a *App) plainViewport() bool {
+	return a.page == "home" || a.page == "userCenter"
+}
+
 func (a *App) View(c *myui.Context) {
 	a.applyTheme(c)
 	a.shortcuts(c)
@@ -442,9 +482,8 @@ func (a *App) View(c *myui.Context) {
 		page := myui.Row(c).Fill().AlignItems(myui.Stretch)
 		page.Children(func() {
 			side := myui.Column(c).Width(232)
-			if !c.Vibrancy() {
-				side.Background(p.sidebar).LinearGradient(sidebarGradient(c.Theme().Dark))
-			}
+			// 侧栏渐变随配色方案变化，不受窗口 Vibrancy 的材质影响。
+			side.Background(p.sidebar).LinearGradient(sidebarGradient(c.Theme().Dark))
 			side.Children(func() {
 				a.sidebar(c)
 			})
@@ -452,48 +491,73 @@ func (a *App) View(c *myui.Context) {
 			main := myui.Box(c.Key("main")).Grow(1).Background(p.bg)
 			main.Children(func() {
 				pad := float32(46)
+				// 底部给悬浮状态栏留出空间，内容从栏下方滚过而不被遮挡。
+				bottomPad := bottomBarHeight + 16
+				plain := a.plainViewport()
+				if plain {
+					// 整页滚动：没有顶部边缘与底部状态栏，只需普通页边距。
+					pad, bottomPad = 28, 28
+				}
 				if a.fillsViewport() {
 					// 车系列表自己滚动（虚拟列表），页面不再套外层 Scroll，
 					// 否则列表拿不到可用高度，只能退化成一次性渲染全部行。
-					a.underTop = false
-					myui.Column(c.Key("content-"+a.page)).Grow(1).Padding(pad, 22, 24, 22).Children(func() {
+					// 列表被 bottomPad 垫在底栏上方，内容不会滚入栏下。
+					a.underTop, a.underBottom = false, false
+					myui.Column(c.Key("content-"+a.page)).Grow(1).Padding(pad, 22, bottomPad, 22).Children(func() {
 						a.renderPage(c)
 					})
 				} else {
-					myui.Scroll(c.Key("content-"+a.page)).
+					scroll := myui.Scroll(c.Key("content-"+a.page)).
 						TrackScroll(&a.contentScroll).
 						Grow(1).
-						Padding(pad, 22, 24, 22).
-						ScrollbarInsets(pad, 0, 24, 0).
-						Children(func() {
+						Padding(pad, 22, bottomPad, 22)
+					if plain {
+						// 没有悬浮栏，滚动条可贯穿整个容器高度并贴住右缘。
+						a.underTop, a.underBottom = false, false
+						scroll.ScrollbarInsets(0)
+					} else {
+						scroll.ScrollbarInsets(pad, 0, bottomPad, 0)
+					}
+					scroll.Children(func() {
+						if !plain {
 							mark := myui.Box(c.Key("content-start-mark")).Height(0).Bounds()
 							if mark.W > 0 {
 								a.underTop = mark.Y < pad-0.5
 							}
-							a.renderPage(c)
-						})
-				}
-				a.statusBar(c, p)
-				edge := myui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(pad).DragWindow().
-					Material(glass.ScrollEdge{Hard: true, Background: p.bg})
-				edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
-				if len(a.history) > 0 || len(a.forward) > 0 {
-					myui.Row(c).Absolute().Top(0).Left(20).Height(pad).AlignItems(myui.Center).Children(func() {
-						back := navIconButton(c, "nav-back", iconBack, i18n.T("后退"))
-						if len(a.history) == 0 {
-							back.Disabled(true)
-							back.Opacity(0.35)
 						}
-						if back.Clicked() {
-							a.back()
-						}
-						if len(a.forward) > 0 {
-							forward := navIconButton(c, "nav-forward", iconForward, i18n.T("前进"))
-							if forward.Clicked() {
-								a.goForward()
+						a.renderPage(c)
+						if !plain {
+							end := myui.Box(c.Key("content-end-mark")).Height(0).Bounds()
+							if end.W > 0 {
+								_, h := c.Size()
+								a.underBottom = end.Y > h-bottomBarHeight+0.5
 							}
 						}
 					})
+				}
+				if !plain {
+					a.statusBar(c, p)
+					edge := myui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(pad).DragWindow().
+						Material(glass.ScrollEdge{Hard: true, Background: p.bg})
+					edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
+					if len(a.history) > 0 || len(a.forward) > 0 {
+						myui.Row(c).Absolute().Top(0).Left(20).Height(pad).AlignItems(myui.Center).Children(func() {
+							back := navIconButton(c, "nav-back", iconBack, i18n.T("后退"))
+							if len(a.history) == 0 {
+								back.Disabled(true)
+								back.Opacity(0.35)
+							}
+							if back.Clicked() {
+								a.back()
+							}
+							if len(a.forward) > 0 {
+								forward := navIconButton(c, "nav-forward", iconForward, i18n.T("前进"))
+								if forward.Clicked() {
+									a.goForward()
+								}
+							}
+						})
+					}
 				}
 			})
 		})
@@ -528,26 +592,26 @@ func (a *App) generalSettings(c *myui.Context) {
 	a.settingsGroup(c, func() {
 		a.settingsRow(c, i18n.T("界面语言"), "", func() {
 			follow := i18n.T("跟随系统")
-			names := []string{follow, "English", "简体中文"}
+			names := []string{follow, "English", i18n.T("简体中文")}
 			chosen := follow
 			switch a.prefs.Language {
 			case "en", "en-US":
 				chosen = "English"
 			case "zh-CN":
-				chosen = "简体中文"
+				chosen = i18n.T("简体中文")
 			}
 			if myui.Select(c.Key("language"), &chosen, names).Label(i18n.T("界面语言")).Width(170).Changed() {
 				code := "system"
 				switch chosen {
 				case "English":
 					code = "en"
-				case "简体中文":
+				case i18n.T("简体中文"):
 					code = "zh-CN"
 				}
 				a.prefs.Language = code
 				i18n.Set(code)
 				a.seriesFilterEnergy = ""
-				a.savePrefs()
+				a.savePrefsWithToast(i18n.T("界面语言"))
 				a.Refresh()
 				if a.settingsWin != nil {
 					a.settingsWin.SetTitle(i18n.T("设置"))
@@ -562,11 +626,48 @@ func (a *App) generalSettings(c *myui.Context) {
 				a.prefs.Appearance,
 				func(value string) {
 					a.prefs.Appearance = value
-					a.savePrefs()
+					a.savePrefsWithToast(i18n.T("主题"))
 					applyAppearance(value)
 					a.invalidateWindows()
 				},
 			)
+		})
+		a.settingsRow(c, i18n.T("配色方案"), i18n.T("同时改变强调色与左侧栏背景，立即应用"), func() {
+			myui.Row(c).Gap(10).AlignItems(myui.Center).Children(func() {
+				for _, scheme := range colorSchemes {
+					current := scheme
+					active := currentColorSchemeKey == current.key
+					pick := myui.ButtonBase(c.Key("color-scheme-"+current.key)).
+						Size(40, 40).Radius(999).Center().FocusRing(false).
+						Label(i18n.T(current.label))
+					bg := myui.Transparent
+					if active {
+						bg = p.press
+					} else if pick.Hovered() {
+						bg = p.hover
+					}
+					pick.Background(bg)
+					pick.Children(func() {
+						// 外圈是侧栏底色（深色主题），内点是强调色，直观预览方案效果。
+						sideFrom, _ := current.sidebarColors(true)
+						ring := myui.Box(c).Size(28, 28).Radius(999).Center().Background(sideFrom)
+						if active {
+							ring.Border(2, current.swatch)
+						} else {
+							ring.Border(1, p.hairline)
+						}
+						ring.Children(func() {
+							myui.Box(c).Size(11, 11).Radius(999).Background(current.swatch)
+						})
+					})
+					if pick.Clicked() {
+						a.prefs.ColorScheme = current.key
+						setColorScheme(current.key)
+						a.savePrefsWithToast(i18n.T("配色方案"))
+						a.invalidateWindows()
+					}
+				}
+			})
 		})
 		a.settingsRow(c, i18n.T("默认页面"), "", func() {
 			codes := []string{"seriesQuery", "seriesFilter", "catalog", "gallery", "youvision"}
@@ -588,7 +689,7 @@ func (a *App) generalSettings(c *myui.Context) {
 						break
 					}
 				}
-				a.savePrefs()
+				a.savePrefsWithToast(i18n.T("默认页面"))
 			}
 		})
 	})
@@ -599,7 +700,7 @@ func (a *App) generalSettings(c *myui.Context) {
 }
 
 func (a *App) categorySettings(c *myui.Context) {
-	a.renderCategories(c)
+	a.renderCategorySettings(c)
 }
 
 func (a *App) syncSettings(c *myui.Context) {
@@ -611,46 +712,40 @@ func (a *App) systemSettings(c *myui.Context) {
 }
 
 func (a *App) updateSettings(c *myui.Context) {
-	p := paletteFor(c.Theme().Dark)
-	enabled := updatesEnabled()
-
-	a.settingsGroup(c, func() {
-		a.settingsRow(c, i18n.T("自动检查更新"), i18n.T("每天检查一次是否有新版本"), func() {
-			on := a.prefs.AutoCheckUpdates
-			if myui.Switch(c.Key("update-checks"), &on).Label(i18n.T("自动检查更新")).
-				Disabled(!enabled).Changed() {
-				a.prefs.AutoCheckUpdates = on
-				a.savePrefs()
-			}
-		})
-		a.settingsRow(c, i18n.T("自动下载并安装"), i18n.T("在后台下载新版本，下次打开时生效"), func() {
-			on := a.prefs.AutoInstallUpdates
-			if myui.Switch(c.Key("update-downloads"), &on).Label(i18n.T("自动下载并安装")).
-				Disabled(!enabled || !a.prefs.AutoCheckUpdates).Changed() {
-				a.prefs.AutoInstallUpdates = on
-				a.savePrefs()
-			}
-		})
-		a.settingsRow(c, fmt.Sprintf(i18n.T("当前版本 %s"), mygo.App.Version()), "", func() {
-			if myui.Button(c.Key("check-updates"), i18n.T("检查更新")).Disabled(!enabled).Clicked() {
-				a.checkUpdateNow()
-			}
-		})
-	})
-
-	// 未配置更新时明确说明，不让用户误以为开关可用或检查按钮会生效。
-	if !enabled {
-		myui.Text(c, i18n.T("当前构建未启用自动更新")).FontSize(12.5).TextColor(p.muted)
-	}
-	if strings.TrimSpace(a.settingsMessage) != "" {
-		myui.Text(c, a.settingsMessage).FontSize(12.5).TextColor(p.muted)
-	}
+	a.renderUpdateSettings(c)
 }
 
 func (a *App) aboutSettings(c *myui.Context) {
+	// 应用信息：名称、版本、描述、技术栈与运行时环境。
 	a.settingsGroup(c, func() {
 		a.settingsRow(c, i18n.T("应用名称"), "autoCarSystem", func() {})
 		a.settingsRow(c, i18n.T("版本"), mygo.App.Version(), func() {})
 		a.settingsRow(c, i18n.T("描述"), i18n.T("本地图集与版型数据管理工具"), func() {})
+		a.settingsRow(c, i18n.T("技术栈"), "Go  ·  MyGo  ·  SQLite", func() {})
+		a.settingsRow(c, i18n.T("运行时"), runtime.Version()+"  ·  "+runtime.GOOS+"/"+runtime.GOARCH, func() {})
+	})
+
+	// 数据统计：复用已加载的计数，覆盖全部实体。
+	a.settingsGroup(c, func() {
+		for _, item := range []struct{ label, key string }{
+			{i18n.T("品牌"), "brand"},
+			{i18n.T("厂商"), "firm"},
+			{i18n.T("车型"), "series"},
+			{i18n.T("年款"), "spec"},
+			{i18n.T("分类"), "category"},
+			{i18n.T("版型"), "youvision"},
+			{i18n.T("图集"), "gallery"},
+		} {
+			a.settingsRow(c, item.label, strconv.FormatInt(a.countInt(item.key), 10), func() {})
+		}
+	})
+
+	// 存储位置：便于用户定位数据与配置文件。
+	a.settingsGroup(c, func() {
+		a.settingsRow(c, i18n.T("根目录"), a.paths.Root, func() {})
+		a.settingsRow(c, i18n.T("数据目录"), a.paths.Data, func() {})
+		a.settingsRow(c, i18n.T("媒体目录"), a.paths.Media, func() {})
+		a.settingsRow(c, i18n.T("数据库"), a.paths.DBPath, func() {})
+		a.settingsRow(c, i18n.T("配置文件"), a.paths.PrefsPath, func() {})
 	})
 }

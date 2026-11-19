@@ -3,11 +3,11 @@ package sync
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"autocarsystem/internal/fileutil"
+	"autocarsystem/internal/i18n"
 )
 
 type StageStats struct {
@@ -52,10 +52,10 @@ func LoadState(path string) (State, error) {
 		if os.IsNotExist(err) {
 			return state, nil
 		}
-		return state, fmt.Errorf("读取同步状态失败: %w", err)
+		return state, i18n.Errorf("读取同步状态失败: %w", err)
 	}
 	if err := json.Unmarshal(data, &state); err != nil {
-		return state, fmt.Errorf("解析同步状态失败: %w", err)
+		return state, i18n.Errorf("解析同步状态失败: %w", err)
 	}
 	if state.Stats == nil {
 		state.Stats = NewState().Stats
@@ -68,14 +68,14 @@ func LoadState(path string) (State, error) {
 
 func SaveState(path string, state State) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("创建同步状态目录失败: %w", err)
+		return i18n.Errorf("创建同步状态目录失败: %w", err)
 	}
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化同步状态失败: %w", err)
+		return i18n.Errorf("序列化同步状态失败: %w", err)
 	}
 	if err := writeFileAtomic(path, data, 0o644); err != nil {
-		return fmt.Errorf("写入同步状态失败: %w", err)
+		return i18n.Errorf("写入同步状态失败: %w", err)
 	}
 	return nil
 }
@@ -87,24 +87,24 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 
 func AppendConflict(path string, conflict Conflict) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("创建冲突日志目录失败: %w", err)
+		return i18n.Errorf("创建冲突日志目录失败: %w", err)
 	}
 	line, err := json.Marshal(conflict)
 	if err != nil {
-		return fmt.Errorf("序列化冲突日志失败: %w", err)
+		return i18n.Errorf("序列化冲突日志失败: %w", err)
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
-		return fmt.Errorf("打开冲突日志失败: %w", err)
+		return i18n.Errorf("打开冲突日志失败: %w", err)
 	}
 	defer f.Close()
 
 	w := bufio.NewWriter(f)
 	if _, err := w.Write(append(line, '\n')); err != nil {
-		return fmt.Errorf("写入冲突日志失败: %w", err)
+		return i18n.Errorf("写入冲突日志失败: %w", err)
 	}
 	if err := w.Flush(); err != nil {
-		return fmt.Errorf("刷新冲突日志失败: %w", err)
+		return i18n.Errorf("刷新冲突日志失败: %w", err)
 	}
 	return nil
 }

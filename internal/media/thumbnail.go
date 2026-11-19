@@ -1,7 +1,6 @@
 package media
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	_ "image/gif"
@@ -12,6 +11,7 @@ import (
 
 	// 注册 webp 解码器：既让 EnsureThumbnail 能缩放 webp，也让使用
 	// image.Decode 的 myui.DecodeBitmap 能显示 webp 原图与缩略图。
+	"autocarsystem/internal/i18n"
 	_ "golang.org/x/image/webp"
 )
 
@@ -39,12 +39,12 @@ func EnsureThumbnail(finalDir string, relPath string) (string, error) {
 		return thumbRel, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return "", fmt.Errorf("创建缩略图目录失败: %w", err)
+		return "", i18n.Errorf("创建缩略图目录失败: %w", err)
 	}
 
 	srcFile, err := os.Open(src)
 	if err != nil {
-		return "", fmt.Errorf("打开原图失败: %w", err)
+		return "", i18n.Errorf("打开原图失败: %w", err)
 	}
 	defer srcFile.Close()
 
@@ -54,7 +54,7 @@ func EnsureThumbnail(finalDir string, relPath string) (string, error) {
 		// 否则解码器会把任意格式当作 JPEG，产生坏图。
 		placeholder := image.NewRGBA(image.Rect(0, 0, 1, 1))
 		if encErr := encodeJPEG(target, placeholder); encErr != nil {
-			return "", fmt.Errorf("生成缩略图占位图失败: %w (解码原图: %v)", encErr, err)
+			return "", i18n.Errorf("生成缩略图占位图失败: %w (解码原图: %v)", encErr, err)
 		}
 		return thumbRel, nil
 	}
@@ -73,11 +73,11 @@ func EnsureThumbnail(finalDir string, relPath string) (string, error) {
 func encodeJPEG(target string, img image.Image) error {
 	out, err := os.Create(target)
 	if err != nil {
-		return fmt.Errorf("创建缩略图失败: %w", err)
+		return i18n.Errorf("创建缩略图失败: %w", err)
 	}
 	defer out.Close()
 	if err := jpeg.Encode(out, flattenAlpha(img), &jpeg.Options{Quality: 82}); err != nil {
-		return fmt.Errorf("编码缩略图失败: %w", err)
+		return i18n.Errorf("编码缩略图失败: %w", err)
 	}
 	return nil
 }

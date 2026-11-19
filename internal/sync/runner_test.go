@@ -137,6 +137,7 @@ func TestRunWithConfigParsesRealFieldShapes(t *testing.T) {
 	cfg.SpecURLFormat = server.URL + "/spec?seriesid=%d"
 	cfg.Retry = 1
 	cfg.Delay = 0
+	cfg.SyncSpecs = true
 
 	progressCount := 0
 	if err := RunWithConfig(ctx, svc, paths, cfg, func(Progress) { progressCount++ }); err != nil {

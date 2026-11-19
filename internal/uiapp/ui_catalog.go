@@ -5,6 +5,9 @@ import (
 	"autocarsystem/internal/i18n"
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	myui "github.com/egoist/mygo/ui"
 )
 
@@ -38,51 +41,211 @@ func (a *App) entityButton(c *myui.Context, label string, entity string) {
 	}
 }
 
+// catalogCardHeight 是品牌/厂商卡片的固定高度，与 GridView 的行高一致。
+const catalogCardHeight = 96
+
+// catalogGridHeight 限制网格高度，让上千张卡片只构建可视区域。
+const catalogGridHeight = 480
+
+// logoThumb 显示品牌或厂商 Logo；本地文件缺失时退化为名称首字占位。
+// 走与车系相同的位图缓存，缺图记 nil，不反复读盘。
+func (a *App) logoThumb(c *myui.Context, path, name string, p palette) {
+	const size = 40
+	box := myui.Box(c).Size(size, size).Radius(9).Center()
+	if bitmap := a.seriesLogo(path); bitmap != nil {
+		box.Children(func() {
+			myui.Image(c, bitmap).Size(size, size).Fit(myui.Cover).Radius(9)
+		})
+		return
+	}
+	box.Background(p.hover)
+	label := "?"
+	for _, r := range name {
+		label = string(r)
+		break
+	}
+	box.Children(func() {
+		myui.Text(c, label).FontSize(17).FontWeight(600).TextColor(p.faint)
+	})
+}
+
+// catalogCard 绘制一张可点击编辑的品牌/厂商卡片：Logo、名称、ID 与元信息。
+func (a *App) catalogCard(c *myui.Context, key string, logoPath, name, meta string, badges []string, id int64, entity string, p palette) {
+	card := myui.ButtonBase(c.Key(key)).
+		Height(catalogCardHeight).Padding(12).Gap(12).Radius(12).
+		AlignItems(myui.Center).FocusRing(false).
+		Label(fmt.Sprintf("%s #%d", name, id))
+	bg := p.bg
+	if card.Hovered() {
+		bg = p.hover
+	}
+	if a.catalogEditID == id && a.catalogEntity == entity {
+		bg = p.press
+	}
+	card.Background(card.AnimateColor("bg", bg, myui.Animation{Duration: 120 * time.Millisecond}))
+	card.Border(1, p.hairline)
+	card.Children(func() {
+		a.logoThumb(c, logoPath, name, p)
+		myui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(5).Children(func() {
+			myui.Text(c, name).FontSize(14).FontWeight(600).SingleLine()
+			myui.Text(c, meta).FontSize(11.5).TextColor(p.muted).SingleLine()
+			if len(badges) > 0 {
+				myui.Row(c).Gap(6).Children(func() {
+					for _, badge := range badges {
+						myui.Box(c).Padding(2, 7).Radius(999).Background(p.accent.Alpha(0.12)).Children(func() {
+							myui.Text(c, badge).FontSize(10.5).TextColor(p.accent)
+						})
+					}
+				})
+			}
+		})
+	})
+	if card.Clicked() {
+		a.loadCatalogEdit(entity, id)
+	}
+}
+
 func (a *App) renderBrandList(c *myui.Context) {
+	p := paletteFor(c.Theme().Dark)
+	myui.Row(c).Gap(10).AlignItems(myui.Center).Children(func() {
+		myui.Text(c, fmt.Sprintf(i18n.T("共 %d 个品牌"), len(a.brands))).FontSize(13).TextColor(p.muted).Grow(1)
+		myui.TextInput(c.Key("brand-search"), &a.brandSearch).
+			Placeholder(i18n.T("搜索名称 / 首字母 / ID")).Label(i18n.T("搜索品牌")).Width(220)
+	})
 	if len(a.brands) == 0 {
 		myui.Text(c, i18n.T("暂无品牌数据。"))
 		return
 	}
+	keyword := strings.ToLower(strings.TrimSpace(a.brandSearch))
+	items := make([]domain.Brand, 0, len(a.brands))
 	for _, item := range a.brands {
-		current := item
-		myui.Row(c.Key(fmt.Sprintf("brand-%d", current.ID))).Gap(8).Children(func() {
-			myui.Text(c, fmt.Sprintf("#%d %s", current.ID, current.Name)).Grow(1)
-			if myui.Button(c, i18n.T("编辑")).Clicked() {
-				a.loadCatalogEdit("brand", current.ID)
+		if keyword != "" {
+			id := fmt.Sprintf("#%d", item.ID)
+			name := strings.ToLower(item.Name)
+			letter := strings.ToLower(item.FirstLetter)
+			if !strings.Contains(name, keyword) && !strings.Contains(letter, keyword) && !strings.Contains(id, keyword) {
+				continue
 			}
-		})
+		}
+		items = append(items, item)
 	}
+	if len(items) == 0 {
+		myui.Text(c, i18n.T("没有匹配的品牌。")).FontSize(13).TextColor(p.muted)
+		return
+	}
+	myui.GridView(c, &a.brandGrid, len(items), 260, catalogCardHeight, func(i int) {
+		item := items[i]
+		meta := fmt.Sprintf(i18n.T("ID %d"), item.ID)
+		if item.FirstLetter != "" {
+			meta += "  ·  " + fmt.Sprintf(i18n.T("首字母 %s"), item.FirstLetter)
+		}
+		var badges []string
+		if item.State != 0 {
+			badges = append(badges, i18n.T("启用"))
+		}
+		if item.HaveNewEnergy != 0 {
+			badges = append(badges, i18n.T("新能源"))
+		}
+		a.catalogCard(c, fmt.Sprintf("brand-card-%d", item.ID), item.LogoLocalPath,
+			item.Name, meta, badges, item.ID, "brand", p)
+	}).Height(catalogGridHeight).Gap(12)
 }
 
 func (a *App) renderFirmList(c *myui.Context) {
+	p := paletteFor(c.Theme().Dark)
+	brandNames := make(map[int64]string, len(a.brands))
+	for _, b := range a.brands {
+		brandNames[b.ID] = b.Name
+	}
+	myui.Row(c).Gap(10).AlignItems(myui.Center).Children(func() {
+		myui.Text(c, fmt.Sprintf(i18n.T("共 %d 个厂商"), len(a.firms))).FontSize(13).TextColor(p.muted).Grow(1)
+		myui.TextInput(c.Key("firm-search"), &a.firmSearch).
+			Placeholder(i18n.T("搜索名称 / 拼音 / ID")).Label(i18n.T("搜索厂商")).Width(220)
+	})
 	if len(a.firms) == 0 {
 		myui.Text(c, i18n.T("暂无厂商数据。"))
 		return
 	}
+	keyword := strings.ToLower(strings.TrimSpace(a.firmSearch))
+	items := make([]domain.Firm, 0, len(a.firms))
 	for _, item := range a.firms {
-		current := item
-		myui.Row(c.Key(fmt.Sprintf("firm-%d", current.ID))).Gap(8).Children(func() {
-			myui.Text(c, fmt.Sprintf(i18n.T("#%d 品牌#%d %s"), current.ID, current.BrandID, current.Name)).Grow(1)
-			if myui.Button(c, i18n.T("编辑")).Clicked() {
-				a.loadCatalogEdit("firm", current.ID)
+		if keyword != "" {
+			id := fmt.Sprintf("#%d", item.ID)
+			name := strings.ToLower(item.Name)
+			py := strings.ToLower(item.PY)
+			if !strings.Contains(name, keyword) && !strings.Contains(py, keyword) && !strings.Contains(id, keyword) {
+				continue
 			}
-		})
+		}
+		items = append(items, item)
 	}
+	if len(items) == 0 {
+		myui.Text(c, i18n.T("没有匹配的厂商。")).FontSize(13).TextColor(p.muted)
+		return
+	}
+	myui.GridView(c, &a.firmGrid, len(items), 280, catalogCardHeight, func(i int) {
+		item := items[i]
+		meta := fmt.Sprintf(i18n.T("ID %d  ·  品牌 %s"), item.ID, nameOrID(brandNames, item.BrandID))
+		var badges []string
+		if item.PY != "" {
+			badges = append(badges, item.PY)
+		}
+		a.catalogCard(c, fmt.Sprintf("firm-card-%d", item.ID), item.LogoLocalPath,
+			item.Name, meta, badges, item.ID, "firm", p)
+	}).Height(catalogGridHeight).Gap(12)
 }
 
 func (a *App) renderSeriesList(c *myui.Context) {
+	p := paletteFor(c.Theme().Dark)
+	brandNames := make(map[int64]string, len(a.brands))
+	for _, b := range a.brands {
+		brandNames[b.ID] = b.Name
+	}
+	firmNames := make(map[int64]string, len(a.firms))
+	for _, f := range a.firms {
+		firmNames[f.ID] = f.Name
+	}
+	myui.Row(c).Gap(10).AlignItems(myui.Center).Children(func() {
+		myui.Text(c, fmt.Sprintf(i18n.T("已加载 %d / %d 个车型"), len(a.series), a.countInt("series"))).FontSize(13).TextColor(p.muted).Grow(1)
+		myui.TextInput(c.Key("series-search"), &a.seriesSearch).
+			Placeholder(i18n.T("搜索名称 / 拼音 / ID")).Label(i18n.T("搜索车型")).Width(220)
+	})
 	if len(a.series) == 0 {
 		myui.Text(c, i18n.T("暂无车系数据。"))
 		return
 	}
+	keyword := strings.ToLower(strings.TrimSpace(a.seriesSearch))
+	items := make([]domain.Series, 0, len(a.series))
 	for _, item := range a.series {
-		current := item
-		myui.Row(c.Key(fmt.Sprintf("series-%d", current.ID))).Gap(8).Children(func() {
-			myui.Text(c, fmt.Sprintf(i18n.T("#%d 厂商#%d %s"), current.ID, current.FirmID, current.Name)).Grow(1)
-			if myui.Button(c, i18n.T("编辑")).Clicked() {
-				a.loadCatalogEdit("series", current.ID)
+		if keyword != "" {
+			id := fmt.Sprintf("#%d", item.ID)
+			if !strings.Contains(strings.ToLower(item.Name), keyword) &&
+				!strings.Contains(strings.ToLower(item.PY), keyword) &&
+				!strings.Contains(id, keyword) {
+				continue
 			}
-		})
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		myui.Text(c, i18n.T("没有匹配的车型。")).FontSize(13).TextColor(p.muted)
+	} else {
+		myui.GridView(c, &a.seriesGrid, len(items), 260, catalogCardHeight, func(i int) {
+			item := items[i]
+			meta := fmt.Sprintf(i18n.T("ID %d  ·  %s"), item.ID, nameOrID(firmNames, item.FirmID))
+			if item.LevelName != "" {
+				meta += "  ·  " + item.LevelName
+			}
+			var badges []string
+			if item.NewEnergy != 0 {
+				badges = append(badges, i18n.T("新能源"))
+			}
+			if b := nameOrID(brandNames, item.BrandID); b != "" {
+				badges = append(badges, b)
+			}
+			a.catalogCard(c, fmt.Sprintf("series-card-%d", item.ID), item.LogoLocalPath,
+				item.Name, meta, badges, item.ID, "series", p)
+		}).Height(catalogGridHeight).Gap(12)
 	}
 	a.catalogMore(c, len(a.series), a.countInt("series"), func() {
 		a.seriesLimit += catalogBatch
@@ -91,23 +254,64 @@ func (a *App) renderSeriesList(c *myui.Context) {
 }
 
 func (a *App) renderSpecList(c *myui.Context) {
+	p := paletteFor(c.Theme().Dark)
+	seriesNames := make(map[int64]string, len(a.series))
+	for _, s := range a.series {
+		seriesNames[s.ID] = s.Name
+	}
+	myui.Row(c).Gap(10).AlignItems(myui.Center).Children(func() {
+		myui.Text(c, fmt.Sprintf(i18n.T("已加载 %d / %d 个年款"), len(a.specs), a.countInt("spec"))).FontSize(13).TextColor(p.muted).Grow(1)
+		myui.TextInput(c.Key("spec-search"), &a.specSearch).
+			Placeholder(i18n.T("搜索名称 / 车系 / ID")).Label(i18n.T("搜索年款")).Width(220)
+	})
 	if len(a.specs) == 0 {
 		myui.Text(c, i18n.T("暂无年款数据。"))
 		return
 	}
+	keyword := strings.ToLower(strings.TrimSpace(a.specSearch))
+	items := make([]domain.Spec, 0, len(a.specs))
 	for _, item := range a.specs {
-		current := item
-		myui.Row(c.Key(fmt.Sprintf("spec-%d", current.ID))).Gap(8).Children(func() {
-			myui.Text(c, fmt.Sprintf(i18n.T("#%d 车系#%d %s %s"), current.ID, current.SeriesID, current.Name, current.ModelYear)).Grow(1)
-			if myui.Button(c, i18n.T("编辑")).Clicked() {
-				a.loadCatalogEdit("spec", current.ID)
+		if keyword != "" {
+			id := fmt.Sprintf("#%d", item.ID)
+			if !strings.Contains(strings.ToLower(item.Name), keyword) &&
+				!strings.Contains(strings.ToLower(item.SeriesName), keyword) &&
+				!strings.Contains(strings.ToLower(item.ModelYear), keyword) &&
+				!strings.Contains(id, keyword) {
+				continue
 			}
-		})
+		}
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		myui.Text(c, i18n.T("没有匹配的年款。")).FontSize(13).TextColor(p.muted)
+	} else {
+		myui.GridView(c, &a.specGrid, len(items), 260, catalogCardHeight, func(i int) {
+			item := items[i]
+			meta := fmt.Sprintf(i18n.T("ID %d  ·  %s"), item.ID,
+				nameWithFallback(item.SeriesName, seriesNames, item.SeriesID))
+			var badges []string
+			if item.ModelYear != "" {
+				badges = append(badges, item.ModelYear)
+			}
+			if item.BodyForm != "" {
+				badges = append(badges, item.BodyForm)
+			}
+			a.catalogCard(c, fmt.Sprintf("spec-card-%d", item.ID), item.ImageLocalPath,
+				item.Name, meta, badges, item.ID, "spec", p)
+		}).Height(catalogGridHeight).Gap(12)
 	}
 	a.catalogMore(c, len(a.specs), a.countInt("spec"), func() {
 		a.specsLimit += catalogBatch
 		a.Refresh()
 	})
+}
+
+// nameWithFallback 优先使用记录自带名称（Spec.SeriesName），缺失时再按 ID 在内存映射里查找。
+func nameWithFallback(own string, names map[int64]string, id int64) string {
+	if strings.TrimSpace(own) != "" {
+		return own
+	}
+	return nameOrID(names, id)
 }
 
 // catalogBatch 是目录页每次多加载的车系/年款条数。

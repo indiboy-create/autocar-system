@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"autocarsystem/internal/domain"
+	"autocarsystem/internal/i18n"
+	"autocarsystem/internal/service"
 
 	myui "github.com/egoist/mygo/ui"
 )
@@ -243,6 +245,174 @@ func TestSeriesFilterLoadsAllRows(t *testing.T) {
 	}
 }
 
+func TestColorSchemeSelection(t *testing.T) {
+	original := currentColorSchemeKey
+	defer setColorScheme(original)
+
+	setColorScheme("blue")
+	if currentColorSchemeKey != "blue" {
+		t.Fatalf("scheme key = %q, want blue", currentColorSchemeKey)
+	}
+	if activeColorScheme().key != "blue" {
+		t.Fatal("activeColorScheme did not follow selection")
+	}
+	// 明暗两套强调色应随方案变化且与方案自带预览色一致。
+	light, dark := paletteFor(false), paletteFor(true)
+	scheme := activeColorScheme()
+	if !colorEqual(light.accent, scheme.lightAccent) || !colorEqual(dark.accent, scheme.darkAccent) {
+		t.Fatal("palette accent did not follow selected scheme")
+	}
+	// 左侧栏背景与渐变也应跟随方案色调。
+	lightFrom, lightTo := scheme.sidebarColors(false)
+	darkFrom, _ := scheme.sidebarColors(true)
+	if !colorEqual(light.sidebar, lightFrom) || !colorEqual(dark.sidebar, darkFrom) {
+		t.Fatal("palette sidebar did not follow selected scheme")
+	}
+	if g := sidebarGradient(false); !colorEqual(g.From, lightFrom) || !colorEqual(g.To, lightTo) {
+		t.Fatal("sidebar gradient did not follow selected scheme")
+	}
+	// 未知 key 回退到默认方案。
+	setColorScheme("does-not-exist")
+	if activeColorScheme().key != colorSchemes[0].key {
+		t.Fatal("unknown scheme did not fall back")
+	}
+}
+
+func colorEqual(a, b myui.Color) bool {
+	return a.R == b.R && a.G == b.G && a.B == b.B && a.A == b.A
+}
+
+func TestSeriesByIDDerivesOwnership(t *testing.T) {
+	ta := newTestApp(t)
+	ta.exec(t, "INSERT INTO brand(id, name) VALUES (1, '品牌甲')")
+	ta.exec(t, "INSERT INTO firm(id, brand_id, name) VALUES (7, 1, '厂商甲')")
+	ta.exec(t, "INSERT INTO series(id, brand_id, firm_id, name) VALUES (5, 1, 7, '车型甲')")
+	ta.ensureSeriesBrowse()
+	waitBrowse(t, ta.App)
+
+	s, ok := ta.seriesByID(5)
+	if !ok || s.BrandID != 1 || s.FirmID != 7 {
+		t.Fatalf("seriesByID(5) = %+v, ok=%v", s, ok)
+	}
+	if _, ok := ta.seriesByID(999); ok {
+		t.Fatal("seriesByID should miss for unknown id")
+	}
+}
+
+func TestFilterOptionRoundTrip(t *testing.T) {
+	opt := filterOption("奥迪", 42)
+	if got := filterOptionID(opt); got != 42 {
+		t.Fatalf("filterOptionID(%q) = %d, want 42", opt, got)
+	}
+	if got := filterOptionID(i18n.T("全部")); got != 0 {
+		t.Fatalf("filterOptionID(all) = %d, want 0", got)
+	}
+}
+
+func TestSeriesFilterCascade(t *testing.T) {
+	ta := newTestApp(t)
+	// 两个品牌，各一个厂商和两个车系。
+	ta.exec(t, "INSERT INTO brand(id, name) VALUES (1, '品牌甲'), (2, '品牌乙')")
+	ta.exec(t, "INSERT INTO firm(id, brand_id, name) VALUES (1, 1, '厂商甲'), (2, 2, '厂商乙')")
+	ta.exec(t, `INSERT INTO series(id, brand_id, firm_id, name) VALUES
+		(1, 1, 1, '甲车一'), (2, 1, 1, '甲车二'), (3, 2, 2, '乙车一'), (4, 2, 2, '乙车二')`)
+
+	// 重新加载品牌/厂商到内存，并加载全量车系供联动下拉使用。
+	ta.Refresh()
+	ta.ensureSeriesBrowse()
+	waitBrowse(t, ta.App)
+
+	brandOpts := ta.linkedOptions("brand", 0)
+	seriesOpts := ta.linkedOptions("series", 1)
+	if len(seriesOpts) != 3 { // “全部” + 品牌甲下的 2 个车系
+		t.Fatalf("series options = %d, want 3", len(seriesOpts))
+	}
+	// 品牌乙的车系不能出现在品牌甲下的车型选项中。
+	for _, o := range seriesOpts {
+		if strings.Contains(o, "乙车") {
+			t.Fatalf("series options leaked other brand: %q", o)
+		}
+	}
+	if len(brandOpts) != 3 {
+		t.Fatalf("brand options = %d, want 3", len(brandOpts))
+	}
+
+	// 选中品牌甲 + 车系“甲车二”后，查询只返回该车系。
+	ta.seriesFilterBrand = filterOption("品牌甲", 1)
+	ta.seriesFilterSeries = filterOption("甲车二", 2)
+	filters := service.SeriesFilter{
+		BrandID:  filterOptionID(ta.seriesFilterBrand),
+		SeriesID: filterOptionID(ta.seriesFilterSeries),
+		Limit:    -1,
+	}
+	items, err := ta.svc.FilterSeries(context.Background(), filters)
+	if err != nil {
+		t.Fatalf("FilterSeries: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != 2 {
+		t.Fatalf("filtered series = %+v, want only series 2", items)
+	}
+
+	// 联动失效：切到品牌乙后，品牌甲的车型选项应被重置为“全部”。
+	stale := normalizeFilterChoice(filterOption("甲车二", 2), ta.linkedOptions("series", 2))
+	if stale != i18n.T("全部") {
+		t.Fatalf("normalizeFilterChoice = %q, want all", stale)
+	}
+}
+
+func TestLevelChoicesAndKeywordFilter(t *testing.T) {
+	// 级别文案到关键词的映射：全部为空，未收录文案也视为全部。
+	if got := levelKeyword(i18n.T("全部")); got != "" {
+		t.Fatalf("levelKeyword(all) = %q, want empty", got)
+	}
+	if got := levelKeyword("nonexistent"); got != "" {
+		t.Fatalf("levelKeyword(unknown) = %q, want empty", got)
+	}
+	foundSUV, foundSedan := false, false
+	for _, c := range levelChoices() {
+		if c.keyword == "suv" {
+			foundSUV = true
+		}
+		if c.keyword == "型车" {
+			foundSedan = true
+		}
+	}
+	if !foundSUV || !foundSedan {
+		t.Fatalf("level choices missing suv/sedan: %+v", levelChoices())
+	}
+	if len(levelLabels()) != len(levelChoices()) {
+		t.Fatal("levelLabels length mismatch")
+	}
+
+	ta := newTestApp(t)
+	ta.exec(t, "INSERT INTO brand(id, name) VALUES (1, '品牌甲')")
+	ta.exec(t, "INSERT INTO firm(id, brand_id, name) VALUES (1, 1, '厂商甲')")
+	ta.exec(t, `INSERT INTO series(id, brand_id, firm_id, name, py, group_name, level_name) VALUES
+		(1, 1, 1, '奥迪 A4L', 'aodia4l', '奥迪', '中型车'),
+		(2, 1, 1, '宝马 X3',  'baomax3', '宝马', '中型SUV'),
+		(3, 1, 1, '奔驰 C级', 'benzC',   '奔驰', '中型车')`)
+
+	// 关键字按名称模糊匹配。
+	items, err := ta.svc.FilterSeries(context.Background(), service.SeriesFilter{Keyword: "奥迪", Limit: -1})
+	if err != nil || len(items) != 1 || items[0].ID != 1 {
+		t.Fatalf("keyword by name = %+v, err=%v", items, err)
+	}
+	// 纯数字按 ID 精确匹配。
+	items, err = ta.svc.FilterSeries(context.Background(), service.SeriesFilter{Keyword: "2", Limit: -1})
+	if err != nil || len(items) != 1 || items[0].ID != 2 {
+		t.Fatalf("keyword by ID = %+v, err=%v", items, err)
+	}
+	// 级别关键词(“型车”)命中两辆轿车；再叠加关键字只留一辆。
+	items, err = ta.svc.FilterSeries(context.Background(), service.SeriesFilter{Level: "型车", Limit: -1})
+	if err != nil || len(items) != 2 {
+		t.Fatalf("level sedan = %+v, err=%v", items, err)
+	}
+	items, err = ta.svc.FilterSeries(context.Background(), service.SeriesFilter{Level: "suv", Keyword: "宝马", Limit: -1})
+	if err != nil || len(items) != 1 || items[0].ID != 2 {
+		t.Fatalf("level suv + keyword = %+v, err=%v", items, err)
+	}
+}
+
 // seedSeries 插入一个品牌、一个厂商和 n 个车系，满足外键约束。
 func seedSeries(t *testing.T, ta *testApp, n int) {
 	t.Helper()
@@ -268,7 +438,7 @@ func waitBrowse(t *testing.T, a *App) {
 func TestGalleryFilterValidAndInvalidIDs(t *testing.T) {
 	ta := newTestApp(t)
 	ta.gallerySearch = "  奥迪  "
-	ta.filterBrandID = "12"
+	ta.filterBrand = filterOption("品牌甲", 12)
 	ta.filterCategory = "not-a-number"
 	ta.gallerySort = "updated_desc"
 
@@ -281,5 +451,142 @@ func TestGalleryFilterValidAndInvalidIDs(t *testing.T) {
 	}
 	if ta.status == "" {
 		t.Fatal("invalid ID did not report a status")
+	}
+}
+
+func waitMessagePrefix(t *testing.T, a *App, prefix string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.HasPrefix(a.settingsMessage, prefix) {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("message = %q, want prefix %q", a.settingsMessage, prefix)
+}
+
+func TestRunBackupNowCreatesBackup(t *testing.T) {
+	ta := newTestApp(t)
+	ta.settingsMessage = ""
+	before := len(ta.backups)
+
+	ta.runBackupNow()
+	waitMessagePrefix(t, ta.App, i18n.T("备份完成："))
+
+	if len(ta.backups) <= before {
+		t.Fatal("backup list was not refreshed")
+	}
+	if ta.prefs.LastBackupAt == "" {
+		t.Fatal("last backup time was not recorded")
+	}
+	if _, err := os.Stat(filepath.Join(ta.paths.BackupDir, ta.backups[0].Name)); err != nil {
+		t.Fatalf("backup file missing: %v", err)
+	}
+}
+
+func TestAutoBackupRunsWhenDue(t *testing.T) {
+	ta := newTestApp(t)
+	ta.prefs.AutoBackup = true
+	ta.prefs.BackupIntervalHours = 1
+	ta.prefs.LastBackupAt = time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339)
+	ta.settingsMessage = ""
+	before := len(ta.backups)
+
+	ta.runAutoBackupIfDue(context.Background(), time.Now())
+	waitMessagePrefix(t, ta.App, i18n.T("自动备份完成："))
+
+	if len(ta.backups) <= before {
+		t.Fatal("scheduled backup did not create a backup")
+	}
+}
+
+func TestAutoBackupSkipsWhenNotDue(t *testing.T) {
+	ta := newTestApp(t)
+	ta.prefs.AutoBackup = true
+	ta.prefs.BackupIntervalHours = 24
+	ta.prefs.LastBackupAt = time.Now().UTC().Format(time.RFC3339)
+	ta.settingsMessage = ""
+	before := len(ta.backups)
+
+	ta.runAutoBackupIfDue(context.Background(), time.Now())
+	time.Sleep(50 * time.Millisecond)
+
+	if ta.settingsMessage != "" {
+		t.Fatalf("unexpected message: %q", ta.settingsMessage)
+	}
+	if len(ta.backups) != before {
+		t.Fatalf("backup should be skipped, count changed from %d to %d", before, len(ta.backups))
+	}
+}
+
+func TestAutoBackupRunsWhenNeverBackedUp(t *testing.T) {
+	ta := newTestApp(t)
+	ta.prefs.AutoBackup = true
+	ta.prefs.BackupIntervalHours = 72
+	ta.prefs.LastBackupAt = ""
+	ta.settingsMessage = ""
+	before := len(ta.backups)
+
+	ta.runAutoBackupIfDue(context.Background(), time.Now())
+	waitMessagePrefix(t, ta.App, i18n.T("自动备份完成："))
+
+	if len(ta.backups) <= before {
+		t.Fatal("first backup was not created")
+	}
+}
+
+func TestCategorySettingsPageRenders(t *testing.T) {
+	ta := newTestApp(t)
+	i18n.Set("zh-CN")
+	ta.settingsPage = "category"
+	tt := myui.NewTester(ta.settingsView, 900, 700)
+	tt.Frame()
+
+	for _, want := range []string{
+		"新增分类", "创建用于版型与图集的分类", "新分类名称",
+		"分类列表", "启用或禁用分类，删除不再使用的分类",
+		fmt.Sprintf("共 %d 个分类", len(ta.categories)),
+		"手缝把套", "通用把套",
+	} {
+		if !tt.HasText(want) {
+			t.Errorf("category page missing %q; texts: %v", want, tt.Texts())
+		}
+	}
+}
+
+func TestSystemSettingsPageRenders(t *testing.T) {
+	ta := newTestApp(t)
+	i18n.Set("zh-CN")
+	ta.settingsPage = "system"
+	tt := myui.NewTester(ta.settingsView, 900, 700)
+	tt.Frame()
+
+	for _, want := range []string{
+		"系统信息", "本地运行", "根目录", "数据目录", "媒体目录", "数据库", "配置文件",
+		ta.paths.Root, ta.paths.DBPath,
+		"孤儿图集目录", "未发现", "扫描孤儿目录", "清理孤儿目录",
+		"未发现孤儿图集目录，或尚未扫描。",
+	} {
+		if !tt.HasText(want) {
+			t.Errorf("system page missing %q; texts: %v", want, tt.Texts())
+		}
+	}
+}
+
+func TestLicenseSettingsPageRenders(t *testing.T) {
+	ta := newTestApp(t)
+	i18n.Set("zh-CN")
+	ta.settingsPage = "license"
+	tt := myui.NewTester(ta.settingsView, 900, 700)
+	tt.Frame()
+
+	for _, want := range []string{
+		"授权", "软件授权", "查看与管理本软件的授权状态", "待配置",
+		"授权功能正在建设中，后续将在此提供授权状态与激活管理。",
+	} {
+		if !tt.HasText(want) {
+			t.Errorf("license page missing %q; texts: %v", want, tt.Texts())
+		}
 	}
 }

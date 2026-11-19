@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -202,11 +203,13 @@ func scanSeriesRows(rows sqlite.Rows) []domain.Series {
 
 // SeriesFilter 定义筛选查询参数。
 type SeriesFilter struct {
-	BrandID int64
-	FirmID  int64
-	Level   string
-	Energy  string // "", "新能源", "燃油"
-	Limit   int
+	BrandID  int64
+	FirmID   int64
+	SeriesID int64 // 车型（车系）ID，0 表示不限
+	Level    string
+	Energy   string // "", "新能源", "燃油"
+	Keyword  string // 匹配车系名称 / 拼音 / 车组，纯数字时按 ID 精确匹配
+	Limit    int
 }
 
 // FilterSeries 按品牌、厂商、级别、能源类型在数据库中筛选车系。
@@ -224,14 +227,29 @@ func (s *Service) FilterSeries(ctx context.Context, f SeriesFilter) ([]domain.Se
 		conditions = append(conditions, "firm_id = ?")
 		args = append(args, f.FirmID)
 	}
+	if f.SeriesID != 0 {
+		conditions = append(conditions, "id = ?")
+		args = append(args, f.SeriesID)
+	}
 	if level := strings.TrimSpace(f.Level); level != "" {
 		conditions = append(conditions, "LOWER(level_name) LIKE ?")
 		args = append(args, "%"+strings.ToLower(level)+"%")
 	}
+	if kw := strings.TrimSpace(f.Keyword); kw != "" {
+		// 纯数字按 ID 精确匹配，与 SearchSeries 的关键词行为一致。
+		if id, err := strconv.ParseInt(kw, 10, 64); err == nil {
+			conditions = append(conditions, "id = ?")
+			args = append(args, id)
+		} else {
+			like := "%" + strings.ToLower(kw) + "%"
+			conditions = append(conditions, "(LOWER(name) LIKE ? OR LOWER(py) LIKE ? OR LOWER(group_name) LIKE ?)")
+			args = append(args, like, like, like)
+		}
+	}
 	switch f.Energy {
-	case "新能源":
+	case i18n.Data("新能源"):
 		conditions = append(conditions, "newenergy != 0")
-	case "燃油":
+	case i18n.Data("燃油"):
 		conditions = append(conditions, "newenergy = 0")
 	}
 

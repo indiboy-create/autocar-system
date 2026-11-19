@@ -2,9 +2,7 @@ package uiapp
 
 import (
 	"autocarsystem/internal/i18n"
-	"fmt"
 	myui "github.com/egoist/mygo/ui"
-	"strconv"
 )
 
 func (a *App) sidebar(c *myui.Context) {
@@ -22,18 +20,23 @@ func (a *App) sidebar(c *myui.Context) {
 		})
 
 		myui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
+			a.navSection(c, i18n.T("控制面板"))
+			a.navItemKey(c, "nav-home", iconHome, i18n.T("首页"), "home")
+			a.navItemKey(c, "nav-user-center", iconUser, i18n.T("用户中心"), "userCenter")
+
+			a.navSection(c, i18n.T("数据查询"))
 			a.navItemKey(c, "nav-series-query", iconCatalog, i18n.T("车型查询"), "seriesQuery")
 			a.navItemKey(c, "nav-series-filter", iconSync, i18n.T("筛选查询"), "seriesFilter")
 
-			a.navSection(c, i18n.T("版型管理"))
-			for _, item := range a.categories {
-				a.yuvisionCategoryNavItem(c, item.Name, item.ID, iconLayers)
-			}
+			a.navSection(c, i18n.T("版型图集"))
+			a.navItemKey(c, "nav-yuvision-list", iconLayers, i18n.T("版型列表"), "youvision")
+			a.navItemKey(c, "nav-gallery-list", iconGallery, i18n.T("图集列表"), "gallery")
 
-			a.navSection(c, i18n.T("图集管理"))
-			for _, item := range a.categories {
-				a.galleryCategoryNavItem(c, item.Name, strconv.FormatInt(item.ID, 10), iconGallery)
-			}
+			a.navSection(c, i18n.T("车型数据"))
+			a.catalogNavItem(c, "brand", i18n.T("品牌"), iconCatalog)
+			a.catalogNavItem(c, "firm", i18n.T("厂商"), iconCategory)
+			a.catalogNavItem(c, "series", i18n.T("车型"), iconCatalog)
+			a.catalogNavItem(c, "spec", i18n.T("年款"), iconLayers)
 		})
 
 		a.settingsEntry(c)
@@ -146,19 +149,5 @@ func (a *App) catalogNavItem(c *myui.Context, entity string, label string, icon 
 	selected := a.page == "catalog" && a.catalogEntity == entity
 	a.navLink(c, "nav-catalog-"+entity, icon, label, selected, func() {
 		a.open(navRoute{page: "catalog", catalogEntity: entity})
-	})
-}
-
-func (a *App) yuvisionCategoryNavItem(c *myui.Context, label string, categoryID int64, icon *myui.SVG) {
-	selected := a.page == "youvision" && a.yuvFilterCategory == categoryID
-	a.navLink(c, fmt.Sprintf("nav-yuv-%d", categoryID), icon, label, selected, func() {
-		a.open(navRoute{page: "youvision", yuvFilterCategory: categoryID})
-	})
-}
-
-func (a *App) galleryCategoryNavItem(c *myui.Context, label string, category string, icon *myui.SVG) {
-	selected := a.page == "gallery" && a.filterCategory == category
-	a.navLink(c, "nav-gal-"+category, icon, label, selected, func() {
-		a.open(navRoute{page: "gallery", filterCategory: category})
 	})
 }

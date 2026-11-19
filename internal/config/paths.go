@@ -1,7 +1,7 @@
 package config
 
 import (
-	"fmt"
+	"autocarsystem/internal/i18n"
 	"os"
 	"path/filepath"
 )
@@ -35,12 +35,12 @@ type Paths struct {
 func Load() (Paths, error) {
 	exe, err := executable()
 	if err != nil {
-		return Paths{}, fmt.Errorf("获取主程序路径失败: %w", err)
+		return Paths{}, i18n.Errorf("获取主程序路径失败: %w", err)
 	}
 
 	root, err := filepath.Abs(filepath.Dir(exe))
 	if err != nil {
-		return Paths{}, fmt.Errorf("解析主程序目录失败: %w", err)
+		return Paths{}, i18n.Errorf("解析主程序目录失败: %w", err)
 	}
 	if resolved, err := filepath.EvalSymlinks(root); err == nil {
 		root = resolved
@@ -55,19 +55,19 @@ func Load() (Paths, error) {
 
 func ensureWritableRoot(root string) error {
 	if err := os.MkdirAll(root, 0o755); err != nil {
-		return fmt.Errorf("创建主程序目录失败: %w", err)
+		return i18n.Errorf("创建主程序目录失败: %w", err)
 	}
 	f, err := os.CreateTemp(root, ".writecheck-*")
 	if err != nil {
-		return fmt.Errorf("主程序目录不可写: %w", err)
+		return i18n.Errorf("主程序目录不可写: %w", err)
 	}
 	name := f.Name()
 	if err := f.Close(); err != nil {
 		_ = os.Remove(name)
-		return fmt.Errorf("写入检查失败: %w", err)
+		return i18n.Errorf("写入检查失败: %w", err)
 	}
 	if err := os.Remove(name); err != nil {
-		return fmt.Errorf("清理写入检查文件失败: %w", err)
+		return i18n.Errorf("清理写入检查文件失败: %w", err)
 	}
 	return nil
 }
@@ -117,7 +117,7 @@ func (p Paths) EnsureDirs() error {
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("创建目录失败 %s: %w", dir, err)
+			return i18n.Errorf("创建目录失败 %s: %w", dir, err)
 		}
 	}
 	return nil

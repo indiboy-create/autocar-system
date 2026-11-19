@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"log"
 
 	"autocarsystem/internal/config"
@@ -19,6 +18,9 @@ import (
 //go:embed resources/tray.png
 var trayIcon []byte
 
+//go:embed resources/data/car.db
+var seedDB []byte
+
 func main() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
@@ -31,9 +33,14 @@ func main() {
 	if err := paths.EnsureDirs(); err != nil {
 		log.Fatal(err)
 	}
+	// 预置库随程序编译发布：已有库直接沿用、绝不覆盖；缺失时才释放一份。
+	if err := store.EnsureSeeded(paths.DBPath, seedDB); err != nil {
+		log.Fatal(err)
+	}
 
-	ctx := context.Background()
-	st, err := store.OpenAndMigrate(ctx, paths.DBPath, paths.BackupDir)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	st, err := store.Open(ctx, paths.DBPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,6 +52,9 @@ func main() {
 	}
 
 	app := uiapp.New(svc, paths)
+
+	// 必须在 App.Run 之前注册更新插件；自动检查由插件自行调度。
+	app.UseUpdater()
 
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
@@ -64,8 +74,7 @@ func main() {
 		app.AttachWindow(win)
 		win.SetWindowButtonsTheme(mygo.ThemeSystem)
 
-		// 按偏好做一次每日更新检查；无窗口前不能调用，故放在窗口就绪之后。
-		app.AutoCheckUpdates()
+		app.StartAutoBackup(ctx)
 
 		showMain := func() {
 			if !win.IsVisible() {
@@ -77,6 +86,7 @@ func main() {
 
 		mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
 			app.SetQuitting(true)
+			cancel()
 		})
 		win.OnClose(func(e *mygo.CloseEvent) {
 			if !app.Quitting() {
@@ -92,22 +102,30 @@ func main() {
 			ToolTip: "autoCarSystem",
 			Menu: mygo.NewMenu([]*mygo.MenuItem{
 				{
-					Label: i18n.T("显示 / 隐藏主窗口"),
-					Click: func(*mygo.MenuItem, *mygo.Window) {
-						if win.IsVisible() {
-							win.Hide()
-							return
-						}
-						win.Show()
-						win.Focus()
-					},
+					Label: i18n.T("显示软件"),
+					Click: func(*mygo.MenuItem, *mygo.Window) { showMain() },
+				},
+				{
+					Label: i18n.T("系统设置"),
+					Click: func(*mygo.MenuItem, *mygo.Window) { app.OpenSettingsPage("system") },
+				},
+				{
+					Label: i18n.T("检查更新"),
+					Click: func(*mygo.MenuItem, *mygo.Window) { app.TrayCheckUpdates() },
+				},
+				{
+					Label: i18n.T("关于我们"),
+					Click: func(*mygo.MenuItem, *mygo.Window) { app.OpenSettingsPage("about") },
 				},
 				mygo.Separator(),
-				{Role: mygo.RoleQuit},
+				{
+					Label: i18n.T("退出软件"),
+					Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() },
+				},
 			}),
 		})
 		if err != nil {
-			log.Printf("创建托盘失败: %v", err)
+			log.Print(i18n.Tf("创建托盘失败: %v", err))
 		} else {
 			app.AttachTray(tray)
 			tray.OnClick(showMain)
@@ -120,6 +138,6 @@ func main() {
 	})
 
 	if err := mygo.App.Run(); err != nil {
-		log.Fatal(fmt.Errorf("应用运行失败: %w", err))
+		log.Fatal(i18n.Errorf("应用运行失败: %w", err))
 	}
 }

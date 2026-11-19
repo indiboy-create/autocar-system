@@ -38,22 +38,16 @@ func (a *App) renderGallery(c *myui.Context) {
 		}
 		if myui.Button(c, i18n.T("清除筛选")).Clicked() {
 			a.gallerySearch = ""
-			a.filterBrandID = ""
-			a.filterFirmID = ""
-			a.filterSeriesID = ""
+			a.filterBrand = i18n.T("全部")
+			a.filterSeries = i18n.T("全部")
 			a.filterCategory = ""
 			a.filterYuvision = ""
 			a.Refresh()
 		}
 	})
-	myui.Row(c).Gap(8).Children(func() {
-		if myui.TextInput(c.Key("filter-brand"), &a.filterBrandID).Placeholder(i18n.T("品牌 ID")).Label(i18n.T("品牌 ID")).Changed() {
-			a.Refresh()
-		}
-		if myui.TextInput(c.Key("filter-firm"), &a.filterFirmID).Placeholder(i18n.T("厂商 ID")).Label(i18n.T("厂商 ID")).Changed() {
-			a.Refresh()
-		}
-		if myui.TextInput(c.Key("filter-series"), &a.filterSeriesID).Placeholder(i18n.T("车系 ID")).Label(i18n.T("车系 ID")).Changed() {
+	myui.Row(c).Gap(8).AlignItems(myui.Center).Children(func() {
+		if _, _, changed := a.brandSeriesSelect(c, "filter-brand", "filter-series",
+			&a.filterBrand, &a.filterSeries, 170); changed {
 			a.Refresh()
 		}
 	})
@@ -127,11 +121,9 @@ func (a *App) renderGallery(c *myui.Context) {
 }
 
 func (a *App) renderYuvision(c *myui.Context) {
-	myui.Text(c, i18n.T("版型管理")).FontSize(18).Bold()
-	myui.Row(c).Gap(8).Children(func() {
-		myui.TextInput(c.Key("yv-brand"), &a.yvBrandID).Placeholder(i18n.T("品牌 ID")).Label(i18n.T("品牌 ID"))
-		myui.TextInput(c.Key("yv-firm"), &a.yvFirmID).Placeholder(i18n.T("厂商 ID")).Label(i18n.T("厂商 ID"))
-		myui.TextInput(c.Key("yv-series"), &a.yvSeriesID).Placeholder(i18n.T("车系 ID")).Label(i18n.T("车系 ID"))
+	myui.Text(c, i18n.T("版型列表")).FontSize(18).Bold()
+	myui.Row(c).Gap(8).AlignItems(myui.Center).Children(func() {
+		a.brandSeriesSelect(c, "yv-brand", "yv-series", &a.yvBrand, &a.yvSeries, 170)
 		myui.TextInput(c.Key("yv-category"), &a.yvCategory).Placeholder(i18n.T("分类 ID")).Label(i18n.T("分类 ID"))
 	})
 	myui.Row(c).Gap(8).Children(func() {
@@ -178,48 +170,6 @@ func (a *App) renderYuvision(c *myui.Context) {
 	}
 }
 
-func (a *App) renderCategories(c *myui.Context) {
-	myui.Row(c).Gap(8).Children(func() {
-		if myui.TextInput(c, &a.newName).Placeholder(i18n.T("新分类名称")).Label(i18n.T("新分类名称")).Submitted() {
-			a.createCategory()
-		}
-		if myui.Button(c, i18n.T("新增分类")).Clicked() {
-			a.createCategory()
-		}
-	})
-	for _, category := range a.categories {
-		item := category
-		myui.Row(c.Key(item.ID)).Gap(8).Children(func() {
-			label := item.Name
-			if !item.Enabled {
-				label += i18n.T("（已禁用）")
-			}
-			myui.Text(c, label).Grow(1)
-			action := i18n.T("禁用")
-			if !item.Enabled {
-				action = i18n.T("启用")
-			}
-			if myui.Button(c, action).Clicked() {
-				err := a.svc.SetCategoryEnabled(context.Background(), item.ID, !item.Enabled)
-				if err != nil {
-					a.setStatus(err.Error())
-				} else {
-					a.setStatus("")
-					a.Refresh()
-				}
-			}
-			if myui.Button(c, i18n.T("删除")).Clicked() {
-				if err := a.svc.DeleteCategory(context.Background(), item.ID); err != nil {
-					a.setStatus(err.Error())
-				} else {
-					a.setStatus("")
-					a.Refresh()
-				}
-			}
-		})
-	}
-}
-
 func (a *App) createCategory() {
 	name := strings.TrimSpace(a.newName)
 	if name == "" {
@@ -237,19 +187,15 @@ func (a *App) createCategory() {
 
 func (a *App) createYuvision() {
 	ctx := context.Background()
-	brandID, err := parseID(a.yvBrandID)
-	if err != nil {
-		a.setStatus(i18n.T("品牌 ID 无效"))
+	seriesID := filterOptionID(a.yvSeries)
+	if seriesID == 0 {
+		a.setStatus(i18n.T("请先选择车型"))
 		return
 	}
-	firmID, err := parseID(a.yvFirmID)
-	if err != nil {
-		a.setStatus(i18n.T("厂商 ID 无效"))
-		return
-	}
-	seriesID, err := parseID(a.yvSeriesID)
-	if err != nil {
-		a.setStatus(i18n.T("车系 ID 无效"))
+	// 品牌与厂商由选中车系推导，保证三者归属一致。
+	series, ok := a.seriesByID(seriesID)
+	if !ok {
+		a.setStatus(i18n.T("所选车型不存在"))
 		return
 	}
 	categoryID, err := parseID(a.yvCategory)
@@ -258,7 +204,7 @@ func (a *App) createYuvision() {
 		return
 	}
 
-	id, err := a.svc.CreateYuvision(ctx, brandID, firmID, seriesID, categoryID, a.yvName, a.yvDesc)
+	id, err := a.svc.CreateYuvision(ctx, series.BrandID, series.FirmID, seriesID, categoryID, a.yvName, a.yvDesc)
 	if err != nil {
 		a.setStatus(err.Error())
 		return
@@ -522,14 +468,21 @@ func (a *App) galleryFilter() domain.GalleryFilter {
 		Sort:    a.gallerySort,
 	}
 
+	// 品牌与车型来自联动下拉；车型属于唯一厂商，选中车型时一并限定厂商，
+	// 避免仅按车型 ID 过滤时因历史数据归属差异漏掉记录。
+	filter.BrandID = filterOptionID(a.filterBrand)
+	filter.SeriesID = filterOptionID(a.filterSeries)
+	if filter.SeriesID != 0 {
+		if series, ok := a.seriesByID(filter.SeriesID); ok {
+			filter.FirmID = series.FirmID
+		}
+	}
+
 	fields := []struct {
 		name  string
 		value string
 		out   *int64
 	}{
-		{i18n.T("品牌 ID"), a.filterBrandID, &filter.BrandID},
-		{i18n.T("厂商 ID"), a.filterFirmID, &filter.FirmID},
-		{i18n.T("车系 ID"), a.filterSeriesID, &filter.SeriesID},
 		{i18n.T("分类 ID"), a.filterCategory, &filter.CategoryID},
 		{i18n.T("版型 ID"), a.filterYuvision, &filter.YouvisionID},
 	}
