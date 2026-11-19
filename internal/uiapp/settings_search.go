@@ -25,7 +25,6 @@ func settingsSearchIndex() []settingsSearchEntry {
 		{"general", i18n.T("界面语言"), i18n.Data("language 语言 english 中文")},
 		{"general", i18n.T("主题"), i18n.Data("theme 外观 深色 浅色 dark light system 跟随系统")},
 		{"general", i18n.T("配色方案"), i18n.Data("color scheme 颜色 accent 强调色")},
-		{"general", i18n.T("默认页面"), i18n.Data("default page 首页 启动")},
 		// 分类
 		{"category", i18n.T("分类"), i18n.Data("category 新增分类 分类列表 启用 禁用")},
 		// 同步

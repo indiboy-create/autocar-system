@@ -2,6 +2,7 @@ package uiapp
 
 import (
 	"autocarsystem/internal/i18n"
+
 	myui "github.com/egoist/mygo/ui"
 )
 
@@ -14,8 +15,8 @@ func (a *App) sidebar(c *myui.Context) {
 				myui.Icon(c, iconLogo).Size(20, 20).TextColor(p.onAccent)
 			})
 			myui.Column(c).Gap(2).Children(func() {
-				myui.Text(c, i18n.T("新方圆")).FontSize(18).FontWeight(700).TextColor(p.text)
-				myui.Text(c, i18n.T("版型图集管理")).FontSize(12).TextColor(p.muted)
+				myui.Text(c, i18n.T("工厂管家")).FontSize(18).FontWeight(700).TextColor(p.text)
+				myui.Text(c, i18n.T("AI工厂管理系统")).FontSize(12).TextColor(p.muted)
 			})
 		})
 

@@ -13,7 +13,6 @@ type Prefs struct {
 	Language           string `json:"language"`
 	Appearance         string `json:"appearance"`
 	ColorScheme        string `json:"color_scheme"`
-	DefaultPage        string `json:"default_page"`
 	AutoCheckUpdates   bool   `json:"auto_check_updates"`
 	AutoInstallUpdates bool   `json:"auto_install_updates"`
 	// AutoBackup 开启后按 BackupIntervalHours 周期性备份数据库；0 表示关闭。
@@ -35,7 +34,6 @@ func DefaultPrefs() Prefs {
 		Language:            "system",
 		Appearance:          "system",
 		ColorScheme:         "orange",
-		DefaultPage:         "gallery",
 		AutoCheckUpdates:    true,
 		AutoInstallUpdates:  true,
 		AutoBackup:          true,

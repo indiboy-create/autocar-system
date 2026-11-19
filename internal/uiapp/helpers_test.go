@@ -65,7 +65,7 @@ func newTestApp(t *testing.T) *testApp {
 	a := &App{}
 	a.svc = svc
 	a.paths = paths
-	a.page = "gallery"
+	a.page = "home"
 	a.gallerySort = "updated_desc"
 	a.catalogEntity = "brand"
 	a.coverBitmaps = make(map[string]*ui.Bitmap)

@@ -31,29 +31,35 @@ type palette struct {
 }
 
 var (
-	iconCategory = strokeIcon(`<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="7" cy="6" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18" r="1"/>`)
-	iconHome     = strokeIcon(`<path d="m3 10.5 9-7.5 9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/>`)
-	iconUser     = strokeIcon(`<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>`)
-	iconCatalog  = strokeIcon(`<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>`)
-	iconSync     = strokeIcon(`<path d="M20 12a8 8 0 1 1-2.34-5.66L20 8"/><path d="M20 3v5h-5"/>`)
-	iconTransfer = strokeIcon(`<path d="M4 12a8 8 0 0 1 13.66-5.66L20 8M20 3v5h-5"/><path d="M20 12a8 8 0 0 1-13.66 5.66L4 16M4 21v-5h5"/>`)
-	iconLayers   = strokeIcon(`<path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/>`)
-	iconGallery  = strokeIcon(`<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>`)
-	iconSettings = strokeIcon(`<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>`)
-	iconBack     = strokeIcon(`<path d="m15 18-6-6 6-6"/>`)
-	iconForward  = strokeIcon(`<path d="m9 18 6-6-6-6"/>`)
-	iconAbout    = strokeIcon(`<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none"/>`)
-	iconLogo     = strokeIcon(`<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L6 20"/>`)
-	iconBackup   = strokeIcon(`<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/>`)
-	iconTrash    = strokeIcon(`<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 10v7M14 10v7"/>`)
-	iconLicense  = strokeIcon(`<path d="M15 2 21 8l-9 9-6-6 9-9z"/><path d="m3 13 6 6-3 3H3v-6z"/><path d="m14 5 3 3"/><path d="m7 14 3 3"/>`)
-	iconSearch   = strokeIcon(`<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>`)
-	iconClose    = strokeIcon(`<path d="M6 6l12 12M18 6 6 18"/>`)
+	iconCategory  = strokeIcon(`<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="7" cy="6" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18" r="1"/>`)
+	iconHome      = strokeIcon(`<path d="m3 10.5 9-7.5 9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/>`)
+	iconUser      = strokeIcon(`<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>`)
+	iconCatalog   = strokeIcon(`<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>`)
+	iconSync      = strokeIcon(`<path d="M20 12a8 8 0 1 1-2.34-5.66L20 8"/><path d="M20 3v5h-5"/>`)
+	iconTransfer  = strokeIcon(`<path d="M4 12a8 8 0 0 1 13.66-5.66L20 8M20 3v5h-5"/><path d="M20 12a8 8 0 0 1-13.66 5.66L4 16M4 21v-5h5"/>`)
+	iconLayers    = strokeIcon(`<path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/>`)
+	iconGallery   = strokeIcon(`<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>`)
+	iconSettings  = strokeIcon(`<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>`)
+	iconBack      = strokeIcon(`<path d="m15 18-6-6 6-6"/>`)
+	iconForward   = strokeIcon(`<path d="m9 18 6-6-6-6"/>`)
+	iconAbout     = strokeIcon(`<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none"/>`)
+	iconLogo      = strokeIcon(`<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L6 20"/>`)
+	iconBackup    = strokeIcon(`<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/>`)
+	iconTrash     = strokeIcon(`<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 10v7M14 10v7"/>`)
+	iconLicense   = strokeIcon(`<path d="M15 2 21 8l-9 9-6-6 9-9z"/><path d="m3 13 6 6-3 3H3v-6z"/><path d="m14 5 3 3"/><path d="m7 14 3 3"/>`)
+	iconSearch    = strokeIcon(`<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>`)
+	iconClose     = strokeIcon(`<path d="M6 6l12 12M18 6 6 18"/>`)
+	iconArrowUp   = strokeIcon(`<path d="M12 19V5M6 11l6-6 6 6"/>`)
+	iconArrowDown = strokeIcon(`<path d="M12 5v14M6 13l6 6 6-6"/>`)
 )
 
 type navRoute struct {
 	page              string
 	catalogEntity     string
+	brandID           int64
+	firmID            int64
+	seriesID          int64
+	specID            int64
 	yuvFilterCategory int64
 	filterCategory    string
 }
@@ -86,14 +92,22 @@ type appToast struct {
 }
 
 type appSettings struct {
-	prefs            config.Prefs
-	settingsWin      *mygo.Window
-	settingsPage     string
-	settingsMessage  string
-	settingsQuery    string      // 设置页搜索关键字
+	prefs             config.Prefs
+	settingsWin       *mygo.Window
+	settingsPage      string
+	settingsMessage   string
+	settingsQuery     string      // 设置页搜索关键字
 	settingsSearchBox myui.Handle // Cmd+F 聚焦的设置搜索框
-	toast            appToast
-	updates          bool // updater 插件已注册；决定更新页是否可用
+	toast             appToast
+	updates           bool // updater 插件已注册；决定更新页是否可用
+}
+
+// catalogPagedState 描述目录列表分页加载的进度，参照 music 的 paged。
+type catalogPagedState struct {
+	loaded  bool
+	loading bool
+	more    bool
+	err     string
 }
 
 type appCatalogData struct {
@@ -103,16 +117,46 @@ type appCatalogData struct {
 	galleries  []domain.Gallery
 	counts     map[string]int64
 	backups    []domain.BackupInfo
-	gridState  myui.GridState
-	// 各实体卡片的搜索关键字与网格滚动状态。
-	brandSearch  string
-	firmSearch   string
-	seriesSearch string
-	specSearch   string
-	brandGrid    myui.GridState
-	firmGrid     myui.GridState
-	seriesGrid   myui.GridState
-	specGrid     myui.GridState
+	// 各实体落地页当前展示的 ID，0 表示未选中。
+	brandDetailID  int64
+	firmDetailID   int64
+	seriesDetailID int64
+	specDetailID   int64
+	// 各目录页分页加载状态（参照 mygo-music 的收藏专辑页）。
+	brandPaged  catalogPagedState
+	firmPaged   catalogPagedState
+	seriesPaged catalogPagedState
+	specPaged   catalogPagedState
+	// 各实体服务端搜索：关键字变化时重新查询，结果独立分页。
+	brandSearchKeyword  string            // 已发起查询的关键字
+	brandSearchResults  []domain.Brand    // 服务端返回的搜索结果
+	brandSearchPaged    catalogPagedState // 搜索结果分页状态
+	brandSearchSeq      uint64            // 丢弃过期搜索结果
+	firmSearchKeyword   string
+	firmSearchResults   []domain.Firm
+	firmSearchPaged     catalogPagedState
+	firmSearchSeq       uint64
+	seriesSearchKeyword string
+	seriesSearchResults []domain.Series
+	seriesSearchPaged   catalogPagedState
+	seriesSearchSeq     uint64
+	specSearchKeyword   string
+	specSearchResults   []domain.Spec
+	specSearchPaged     catalogPagedState
+	specSearchSeq       uint64
+	// 各实体卡片的搜索关键字。
+	brandSearch       string
+	brandList         myui.ListState // 品牌页虚拟列表状态
+	brandListKeyword  string         // 搜索词变化时把列表滚回顶部
+	firmSearch        string
+	firmList          myui.ListState
+	firmListKeyword   string
+	seriesSearch      string
+	seriesList        myui.ListState
+	seriesListKeyword string
+	specSearch        string
+	specList          myui.ListState
+	specListKeyword   string
 }
 
 type appVersionDraft struct {
@@ -153,13 +197,14 @@ type appSeriesQuery struct {
 	seriesQueryLoading bool
 	seriesQueryErr     string
 	seriesQuerySeq     int
+	queryVisible       int // 车型查询页当前展示的结果条数，按批增加
+	filterVisible      int // 筛选查询页当前展示的结果条数，按批增加
 	// seriesBrowse 是空关键词时的全量车系，首次进入页面时后台加载一次；
 	// 列表只渲染可视行，不依赖目录页的分批上限。
 	seriesBrowse        []domain.Series
 	seriesBrowseLoading bool
 	seriesBrowseLoaded  bool
 	seriesBrowseErr     string
-	seriesList          myui.ListState
 
 	// 品牌 → 车型两级联动下拉的选中项，存的是选项文本（名称 #ID），
 	// i18n 的“全部”表示不限；ID 在 runSeriesFilter 中解析。
@@ -173,7 +218,6 @@ type appSeriesQuery struct {
 	seriesFilterLoading bool
 	seriesFilterErr     string
 	seriesFilterSeq     int
-	seriesFilterList    myui.ListState
 }
 
 type appSync struct {
@@ -191,73 +235,10 @@ type appLightbox struct {
 
 type appCatalogEdit struct {
 	catalogEntity string
-	catalogEditID int64
 	brands        []domain.Brand
 	firms         []domain.Firm
 	series        []domain.Series
 	specs         []domain.Spec
-	seriesLimit   int // 已加载的车系条数，目录页“加载更多”按批增大
-	specsLimit    int // 已加载的年款条数
-
-	brandEdit struct {
-		Name          string
-		FirstLetter   string
-		LogoURL       string
-		LogoLocalPath string
-		State         string
-		HaveNewEnergy string
-		APISort       string
-	}
-
-	firmEdit struct {
-		Name          string
-		PY            string
-		Link          string
-		LogoURL       string
-		LogoLocalPath string
-	}
-
-	seriesEdit struct {
-		Name          string
-		GroupName     string
-		State         string
-		PriceMin      string
-		PriceMax      string
-		Place         string
-		PY            string
-		LogoURL       string
-		LogoLocalPath string
-		LevelName     string
-		NewEnergy     string
-		IsForeignCar  string
-		IsTop         string
-		FuelTypes     string
-		CartypeName   string
-		Tag1          string
-		Rank          string
-		UVRank        string
-		HotRank       string
-	}
-
-	specEdit struct {
-		GroupName           string
-		Name                string
-		SeriesName          string
-		ModelYear           string
-		BodyForm            string
-		PriceMin            string
-		PriceMax            string
-		NewsPrice           string
-		NewsID              string
-		DealerID            string
-		SaleType            string
-		ImageURL            string
-		ImageLocalPath      string
-		ImageSHA256         string
-		WhiteImageURL       string
-		WhiteImageLocalPath string
-		WhiteImageSHA256    string
-	}
 }
 
 type appCovers struct {
@@ -295,22 +276,13 @@ func New(svc *service.Service, paths config.Paths) *App {
 	i18n.Set(prefs.Language)
 	applyAppearance(prefs.Appearance)
 	setColorScheme(prefs.ColorScheme)
-	page := prefs.DefaultPage
-	switch page {
-	case "gallery", "youvision", "catalog", "seriesQuery", "seriesFilter":
-	default:
-		page = "gallery"
-	}
-
 	app := &App{
 		svc:           svc,
 		paths:         paths,
-		page:          page,
+		page:          "home",
 		gallerySort:   "updated_desc",
 		coverBitmaps:  make(map[string]*myui.Bitmap),
 		catalogEntity: "brand",
-		seriesLimit:   catalogBatch,
-		specsLimit:    catalogBatch,
 		prefs:         prefs,
 		settingsPage:  "general",
 	}
@@ -351,7 +323,6 @@ func (a *App) Refresh() {
 	var filter domain.GalleryFilter
 	var seq uint64
 	var win *mygo.Window
-	var seriesLimit, specLimit int
 
 	// postMain 在主线程上直接执行；从后台调用时会切到主线程并等待，
 	// 保证 refreshSeq 与筛选字段的读写都在同一线程，消除竞态。
@@ -360,23 +331,16 @@ func (a *App) Refresh() {
 		a.refreshSeq = seq
 		filter = a.galleryFilter()
 		win = a.win
-		seriesLimit, specLimit = a.seriesLimit, a.specsLimit
-		if seriesLimit <= 0 {
-			seriesLimit = catalogBatch
-		}
-		if specLimit <= 0 {
-			specLimit = catalogBatch
-		}
 	})
 
 	if win == nil {
 		// 启动阶段（AttachWindow 之前）无窗口可回投，同步加载一次。
-		a.applyRefresh(a.fetchRefresh(context.Background(), filter, seriesLimit, specLimit), seq, false)
+		a.applyRefresh(a.fetchRefresh(context.Background(), filter), seq, false)
 		return
 	}
 
 	go func() {
-		result := a.fetchRefresh(context.Background(), filter, seriesLimit, specLimit)
+		result := a.fetchRefresh(context.Background(), filter)
 		win.Update(func() {
 			a.applyAsyncRefresh(result, seq)
 		})
@@ -396,6 +360,10 @@ func (a *App) currentRoute() navRoute {
 	return navRoute{
 		page:              a.page,
 		catalogEntity:     a.catalogEntity,
+		brandID:           a.brandDetailID,
+		firmID:            a.firmDetailID,
+		seriesID:          a.seriesDetailID,
+		specID:            a.specDetailID,
 		yuvFilterCategory: a.yuvFilterCategory,
 		filterCategory:    a.filterCategory,
 	}
@@ -414,9 +382,12 @@ func (a *App) open(r navRoute) {
 func (a *App) show(r navRoute) {
 	a.page = r.page
 	a.catalogEntity = r.catalogEntity
+	a.brandDetailID = r.brandID
+	a.firmDetailID = r.firmID
+	a.seriesDetailID = r.seriesID
+	a.specDetailID = r.specID
 	a.yuvFilterCategory = r.yuvFilterCategory
 	a.filterCategory = r.filterCategory
-	a.catalogEditID = 0
 	a.Refresh()
 }
 
@@ -454,16 +425,10 @@ func (a *App) shortcuts(c *myui.Context) {
 	})
 }
 
-// fillsViewport 报告页面是否自行管理滚动：车系列表是虚拟列表，需要占满
-// 可用高度并由列表自己滚动，不能再套一层 Scroll。
-func (a *App) fillsViewport() bool {
-	return a.page == "seriesQuery" || a.page == "seriesFilter"
-}
-
-// plainViewport 报告页面是否整页滚动、不带顶部或底部悬浮元素：
-// 首页与用户中心参考 mygo-music 首页，内容可一直滚到窗口边缘。
-func (a *App) plainViewport() bool {
-	return a.page == "home" || a.page == "userCenter"
+// usesVirtualList 报告页面是否由 ui.List 自己管理中间区域的滚动。
+// 品牌卡片数量可达数百，交给框架的虚拟列表只构建可见行。
+func (a *App) usesVirtualList() bool {
+	return a.page == "catalog"
 }
 
 func (a *App) View(c *myui.Context) {
@@ -490,75 +455,60 @@ func (a *App) View(c *myui.Context) {
 
 			main := myui.Box(c.Key("main")).Grow(1).Background(p.bg)
 			main.Children(func() {
+				// 三段式布局（参考 mygo-music）：顶部固定滚动边缘与导航按钮、
+				// 底部固定状态栏，中间内容滚动。
 				pad := float32(46)
 				// 底部给悬浮状态栏留出空间，内容从栏下方滚过而不被遮挡。
 				bottomPad := bottomBarHeight + 16
-				plain := a.plainViewport()
-				if plain {
-					// 整页滚动：没有顶部边缘与底部状态栏，只需普通页边距。
-					pad, bottomPad = 28, 28
-				}
-				if a.fillsViewport() {
-					// 车系列表自己滚动（虚拟列表），页面不再套外层 Scroll，
-					// 否则列表拿不到可用高度，只能退化成一次性渲染全部行。
-					// 列表被 bottomPad 垫在底栏上方，内容不会滚入栏下。
+				if a.usesVirtualList() {
+					// 虚拟列表自己滚动，作为中间唯一滚动容器；顶/底边缘由覆盖层绘制。
 					a.underTop, a.underBottom = false, false
-					myui.Column(c.Key("content-"+a.page)).Grow(1).Padding(pad, 22, bottomPad, 22).Children(func() {
+					myui.Column(c.Key("content-"+a.page)).Grow(1).
+						Padding(pad, 22, bottomPad, 22).Children(func() {
 						a.renderPage(c)
 					})
 				} else {
-					scroll := myui.Scroll(c.Key("content-"+a.page)).
+					myui.Scroll(c.Key("content-"+a.page)).
 						TrackScroll(&a.contentScroll).
 						Grow(1).
-						Padding(pad, 22, bottomPad, 22)
-					if plain {
-						// 没有悬浮栏，滚动条可贯穿整个容器高度并贴住右缘。
-						a.underTop, a.underBottom = false, false
-						scroll.ScrollbarInsets(0)
-					} else {
-						scroll.ScrollbarInsets(pad, 0, bottomPad, 0)
-					}
-					scroll.Children(func() {
-						if !plain {
+						Padding(pad, 22, bottomPad, 22).
+						ScrollbarInsets(pad, 0, bottomPad, 0).
+						Children(func() {
 							mark := myui.Box(c.Key("content-start-mark")).Height(0).Bounds()
 							if mark.W > 0 {
 								a.underTop = mark.Y < pad-0.5
 							}
-						}
-						a.renderPage(c)
-						if !plain {
+							a.renderPage(c)
 							end := myui.Box(c.Key("content-end-mark")).Height(0).Bounds()
 							if end.W > 0 {
 								_, h := c.Size()
 								a.underBottom = end.Y > h-bottomBarHeight+0.5
 							}
+						})
+				}
+				a.statusBar(c, p)
+				edge := myui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(pad).DragWindow().
+					Material(glass.ScrollEdge{Hard: true, Background: p.bg})
+				edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
+				if len(a.history) > 0 || len(a.forward) > 0 {
+					myui.Row(c).Absolute().Top(0).Left(20).Height(pad).AlignItems(myui.Center).Children(func() {
+						back := navIconButton(c, "nav-back", iconBack, i18n.T("后退"))
+						if len(a.history) == 0 {
+							back.Disabled(true)
+							back.Opacity(0.35)
+						}
+						if back.Clicked() {
+							a.back()
+						}
+						if len(a.forward) > 0 {
+							forward := navIconButton(c, "nav-forward", iconForward, i18n.T("前进"))
+							if forward.Clicked() {
+								a.goForward()
+							}
 						}
 					})
 				}
-				if !plain {
-					a.statusBar(c, p)
-					edge := myui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(pad).DragWindow().
-						Material(glass.ScrollEdge{Hard: true, Background: p.bg})
-					edge.Opacity(edgeShown(edge, a.underTop || edge.Hovered()))
-					if len(a.history) > 0 || len(a.forward) > 0 {
-						myui.Row(c).Absolute().Top(0).Left(20).Height(pad).AlignItems(myui.Center).Children(func() {
-							back := navIconButton(c, "nav-back", iconBack, i18n.T("后退"))
-							if len(a.history) == 0 {
-								back.Disabled(true)
-								back.Opacity(0.35)
-							}
-							if back.Clicked() {
-								a.back()
-							}
-							if len(a.forward) > 0 {
-								forward := navIconButton(c, "nav-forward", iconForward, i18n.T("前进"))
-								if forward.Clicked() {
-									a.goForward()
-								}
-							}
-						})
-					}
-				}
+				a.backToTopButton(c, p, bottomPad)
 			})
 		})
 	})
@@ -668,29 +618,6 @@ func (a *App) generalSettings(c *myui.Context) {
 					}
 				}
 			})
-		})
-		a.settingsRow(c, i18n.T("默认页面"), "", func() {
-			codes := []string{"seriesQuery", "seriesFilter", "catalog", "gallery", "youvision"}
-			names := []string{
-				i18n.T("车型查询"), i18n.T("筛选查询"), i18n.T("数据管理"),
-				i18n.T("图集管理"), i18n.T("版型管理"),
-			}
-			chosen := names[0]
-			for i, code := range codes {
-				if a.prefs.DefaultPage == code {
-					chosen = names[i]
-					break
-				}
-			}
-			if myui.Select(c.Key("default-page"), &chosen, names).Label(i18n.T("默认页面")).Width(170).Changed() {
-				for i, name := range names {
-					if chosen == name {
-						a.prefs.DefaultPage = codes[i]
-						break
-					}
-				}
-				a.savePrefsWithToast(i18n.T("默认页面"))
-			}
 		})
 	})
 

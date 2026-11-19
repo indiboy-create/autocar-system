@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"log"
 
 	"autocarsystem/internal/config"
 	"autocarsystem/internal/i18n"
+	"autocarsystem/internal/media"
 	"autocarsystem/internal/service"
 	"autocarsystem/internal/store"
 	"autocarsystem/internal/uiapp"
@@ -21,6 +22,9 @@ var trayIcon []byte
 //go:embed resources/data/car.db
 var seedDB []byte
 
+//go:embed all:resources/media
+var seedMedia embed.FS
+
 func main() {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
@@ -31,6 +35,10 @@ func main() {
 		log.Fatal(err)
 	}
 	if err := paths.EnsureDirs(); err != nil {
+		log.Fatal(err)
+	}
+	// 预置媒体随程序编译发布：只补建缺失的目录/文件，已有内容不删除、不覆盖。
+	if err := media.EnsureSeeded(paths.Media, seedMedia); err != nil {
 		log.Fatal(err)
 	}
 	// 预置库随程序编译发布：已有库直接沿用、绝不覆盖；缺失时才释放一份。

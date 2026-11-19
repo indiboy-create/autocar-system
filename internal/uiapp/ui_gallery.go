@@ -23,7 +23,7 @@ func (a *App) renderGallery(c *myui.Context) {
 		if myui.TextInput(c.Key("gal-title"), &a.galTitle).Placeholder(i18n.T("图集标题")).Label(i18n.T("图集标题")).Submitted() {
 			a.createGallery()
 		}
-		if myui.Button(c, i18n.T("新增图集")).Clicked() {
+		if myui.Button(c, i18n.T("新增图集")).Cursor(myui.CursorPointer).Clicked() {
 			a.createGallery()
 		}
 	})
@@ -33,10 +33,10 @@ func (a *App) renderGallery(c *myui.Context) {
 		if myui.TextInput(c.Key("gal-search"), &a.gallerySearch).Placeholder(i18n.T("搜索标题 / 图集 ID / 版型 ID")).Label(i18n.T("搜索标题 / 图集 ID / 版型 ID")).Bind(&a.searchBox).Changed() {
 			a.Refresh()
 		}
-		if myui.Button(c, i18n.T("搜索")).Clicked() {
+		if myui.Button(c, i18n.T("搜索")).Cursor(myui.CursorPointer).Clicked() {
 			a.Refresh()
 		}
-		if myui.Button(c, i18n.T("清除筛选")).Clicked() {
+		if myui.Button(c, i18n.T("清除筛选")).Cursor(myui.CursorPointer).Clicked() {
 			a.gallerySearch = ""
 			a.filterBrand = i18n.T("全部")
 			a.filterSeries = i18n.T("全部")
@@ -60,47 +60,49 @@ func (a *App) renderGallery(c *myui.Context) {
 		}
 	})
 	myui.Row(c).Gap(8).Children(func() {
-		if myui.Button(c, i18n.T("更新时间")).Clicked() {
+		if myui.Button(c, i18n.T("更新时间")).Cursor(myui.CursorPointer).Clicked() {
 			a.gallerySort = "updated_desc"
 			a.Refresh()
 		}
-		if myui.Button(c, i18n.T("创建时间")).Clicked() {
+		if myui.Button(c, i18n.T("创建时间")).Cursor(myui.CursorPointer).Clicked() {
 			a.gallerySort = "created_desc"
 			a.Refresh()
 		}
-		if myui.Button(c, i18n.T("标题")).Clicked() {
+		if myui.Button(c, i18n.T("标题")).Cursor(myui.CursorPointer).Clicked() {
 			a.gallerySort = "title_asc"
 			a.Refresh()
 		}
-		if myui.Button(c, i18n.T("图片数")).Clicked() {
+		if myui.Button(c, i18n.T("图片数")).Cursor(myui.CursorPointer).Clicked() {
 			a.gallerySort = "image_count_desc"
 			a.Refresh()
 		}
-		if myui.Button(c, "ID").Clicked() {
+		if myui.Button(c, "ID").Cursor(myui.CursorPointer).Clicked() {
 			a.gallerySort = "id_desc"
 			a.Refresh()
 		}
 	})
 
 	if len(a.galleries) > 0 {
-		myui.GridView(c, &a.gridState, len(a.galleries), 180, 150, func(i int) {
-			item := a.galleries[i]
-			myui.Column(c.Key(fmt.Sprintf("gallery-card-%d", item.ID))).Gap(6).Children(func() {
-				path := a.galleryCoverPath(item)
-				if bitmap := a.bitmapAt(path); bitmap != nil {
-					myui.Image(c, bitmap).
-						Size(168, 118).
-						Fit(myui.Cover).
-						Radius(8).
-						OnClick(func() { a.openLightbox(item) })
-				} else {
-					myui.Text(c, i18n.T("暂无图片"))
-				}
-				myui.Text(c, fmt.Sprintf("#%d %s", item.ID, item.Title))
-				if myui.Button(c, i18n.T("删除")).Clicked() {
-					a.deleteGallery(item.ID)
-				}
-			})
+		myui.Grid(c).Columns(4).GapX(16).GapY(16).Children(func() {
+			for i := range a.galleries {
+				item := a.galleries[i]
+				myui.Column(c.Key(fmt.Sprintf("gallery-card-%d", item.ID))).Gap(6).Children(func() {
+					path := a.galleryCoverPath(item)
+					if bitmap := a.bitmapAt(path); bitmap != nil {
+						myui.Image(c, bitmap).
+							Size(168, 118).
+							Fit(myui.Cover).
+							Radius(8).
+							OnClick(func() { a.openLightbox(item) })
+					} else {
+						myui.Text(c, i18n.T("暂无图片"))
+					}
+					myui.Text(c, fmt.Sprintf("#%d %s", item.ID, item.Title))
+					if myui.Button(c, i18n.T("删除")).Cursor(myui.CursorPointer).Clicked() {
+						a.deleteGallery(item.ID)
+					}
+				})
+			}
 		})
 	} else {
 		myui.Text(c, i18n.T("暂无图集。请先创建版型，再创建图集。"))
@@ -110,11 +112,11 @@ func (a *App) renderGallery(c *myui.Context) {
 	myui.Row(c).Gap(8).Children(func() {
 		myui.TextInput(c.Key("gal-upload-id"), &a.galUploadID).Placeholder(i18n.T("图集 ID")).Label(i18n.T("图集 ID"))
 		myui.TextInput(c.Key("gal-upload-src"), &a.galUploadSrc).Placeholder(i18n.T("本地图片完整路径")).Label(i18n.T("本地图片完整路径"))
-		if myui.Button(c, i18n.T("选择图片")).Clicked() {
+		if myui.Button(c, i18n.T("选择图片")).Cursor(myui.CursorPointer).Clicked() {
 			idText := a.galUploadID
 			go a.pickGalleryImages(idText)
 		}
-		if myui.Button(c, i18n.T("上传路径")).Clicked() {
+		if myui.Button(c, i18n.T("上传路径")).Cursor(myui.CursorPointer).Clicked() {
 			a.uploadGalleryImage()
 		}
 	})
@@ -131,7 +133,7 @@ func (a *App) renderYuvision(c *myui.Context) {
 			a.createYuvision()
 		}
 		myui.TextInput(c.Key("yv-desc"), &a.yvDesc).Placeholder(i18n.T("描述")).Label(i18n.T("描述"))
-		if myui.Button(c, i18n.T("新增版型")).Clicked() {
+		if myui.Button(c, i18n.T("新增版型")).Cursor(myui.CursorPointer).Clicked() {
 			a.createYuvision()
 		}
 	})
@@ -147,7 +149,7 @@ func (a *App) renderYuvision(c *myui.Context) {
 		current := item
 		myui.Row(c.Key(fmt.Sprintf("youvision-%d", current.ID))).Gap(8).Children(func() {
 			myui.Text(c, fmt.Sprintf(i18n.T("版型 #%d  %s  分类 #%d"), current.ID, current.Name, current.CategoryID)).Grow(1)
-			if myui.Button(c, i18n.T("删除")).Clicked() {
+			if myui.Button(c, i18n.T("删除")).Cursor(myui.CursorPointer).Clicked() {
 				a.deleteYuvision(current.ID)
 			}
 		})
@@ -157,11 +159,11 @@ func (a *App) renderYuvision(c *myui.Context) {
 	myui.Row(c).Gap(8).Children(func() {
 		myui.TextInput(c.Key("yv-upload-id"), &a.yvUploadID).Placeholder(i18n.T("版型 ID")).Label(i18n.T("版型 ID"))
 		myui.TextInput(c.Key("yv-upload-src"), &a.yvUploadSrc).Placeholder(i18n.T("本地图片完整路径")).Label(i18n.T("本地图片完整路径"))
-		if myui.Button(c, i18n.T("选择图片")).Clicked() {
+		if myui.Button(c, i18n.T("选择图片")).Cursor(myui.CursorPointer).Clicked() {
 			idText := a.yvUploadID
 			go a.pickYuvisionImages(idText)
 		}
-		if myui.Button(c, i18n.T("上传路径")).Clicked() {
+		if myui.Button(c, i18n.T("上传路径")).Cursor(myui.CursorPointer).Clicked() {
 			a.uploadYuvisionImage()
 		}
 	})
@@ -353,7 +355,7 @@ func (a *App) renderLightbox(c *myui.Context) {
 			myui.Text(c, i18n.T("图片无法预览"))
 		}
 		// AutoFocus 让预览打开时关闭按钮即获得焦点，Enter/Esc 都可关闭。
-		if myui.Button(c, i18n.T("关闭")).AutoFocus().Clicked() {
+		if myui.Button(c, i18n.T("关闭")).Cursor(myui.CursorPointer).AutoFocus().Clicked() {
 			a.closeLightbox()
 		}
 	})
@@ -409,7 +411,7 @@ func (a *App) openLightbox(item domain.Gallery) {
 }
 
 // bitmapAt 按需读取并解码封面，解码结果留在缓存里供后续帧复用：图集列表不再
-// 在刷新时全量解码，GridView 只构建可视单元格，因此只有真正显示的封面才会读盘。
+// 在刷新时全量解码，只有真正显示过的封面才会读盘。
 // 解码失败也记入缓存（nil），避免每帧重试同一个坏文件。缓存超过上限时整体清空，
 // 防止大量图集把位图常驻内存。
 func (a *App) bitmapAt(path string) *myui.Bitmap {

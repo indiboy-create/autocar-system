@@ -117,6 +117,48 @@ func navIconButton(c *myui.Context, key string, icon *myui.SVG, label string) my
 	return b
 }
 
+// backToTopButton 在四个目录页下拉后浮现在右下角，点击回到列表顶部后自动消失。
+// 用 Visible() 的可见首行判断是否已离开顶部；列表由各自的 ListState 滚动，
+// 这里只读取上一帧状态，不改变布局。
+func (a *App) backToTopButton(c *myui.Context, p palette, bottom float32) {
+	if a.page != "catalog" {
+		return
+	}
+	var list *myui.ListState
+	switch a.catalogEntity {
+	case "brand":
+		list = &a.brandList
+	case "firm":
+		list = &a.firmList
+	case "series":
+		list = &a.seriesList
+	case "spec":
+		list = &a.specList
+	default:
+		return
+	}
+	first, _ := list.Visible()
+	if first <= 0 {
+		return
+	}
+
+	b := myui.ButtonBase(c.Key("back-to-top")).
+		Absolute().Right(22).Bottom(bottom+12).Size(44, 44).Radius(999).Center().
+		Cursor(myui.CursorPointer).
+		Label(i18n.T("返回顶部")).FocusRing(false)
+	bg := p.accent
+	if b.Hovered() {
+		bg = p.accent.Alpha(0.85)
+	}
+	b.Background(bg)
+	b.Children(func() {
+		myui.Icon(c, iconArrowUp).Size(20, 20).TextColor(p.onAccent)
+	})
+	if b.Clicked() {
+		list.ScrollTo(0, myui.Start)
+	}
+}
+
 func edgeShown(edge myui.Element, under bool) float32 {
 	target := float32(0)
 	if under {
@@ -155,25 +197,10 @@ func (a *App) applyTheme(c *myui.Context) {
 	c.SetTheme(&t)
 }
 
-func (a *App) statusLine() string {
-	if strings.TrimSpace(a.status) != "" {
-		return i18n.T("状态：") + a.status
-	}
-	return fmt.Sprintf(
-		i18n.T("根目录：%s    图集：%d    版型：%d    分类：%d"),
-		a.paths.Root,
-		a.countInt("gallery"),
-		a.countInt("youvision"),
-		a.countInt("category"),
-	)
-}
-
-// bottomBarHeight 是悬浮在主内容区底部的状态栏高度，参考 mygo-music 的播放栏。
+// bottomBarHeight 是悬浮在主内容区底部的底栏高度，参考 mygo-music 的播放栏。
 const bottomBarHeight float32 = 76
 
-// statusBar 是悬浮在主内容区底部的三栏信息栏，参考 mygo-music 的底部播放栏：
-// 左侧显示状态/根目录，中间陈列各类数据统计，右侧显示数据库与状态徽标。
-// 有操作时左侧显示最近的成功/错误消息，否则回落到根目录概览。
+// statusBar 只保留底部栏的框架：毛玻璃边缘与空白底栏，不填充任何内容。
 func (a *App) statusBar(c *myui.Context, p palette) {
 	// 悬浮在内容之上：内容从下方滚过，毛玻璃边缘让栏与内容分层；
 	// 静止时（栏下没有内容）边缘淡出，与 AppKit 的硬滚动边缘一致。
@@ -181,68 +208,7 @@ func (a *App) statusBar(c *myui.Context, p palette) {
 		Material(glass.ScrollEdge{Hard: true, Bottom: true, Background: p.bg})
 	edge.Opacity(edgeShown(edge, a.underBottom))
 
-	bar := myui.Row(c.Key("status-bar")).Absolute().Left(0).Right(0).Bottom(0).Height(bottomBarHeight).
-		PaddingX(22).Gap(20).AlignItems(myui.Center)
-	bar.Children(func() {
-		// 左：状态或根目录，带图标与状态徽标。
-		a.statusLeft(c, p)
-		// 中：数据统计，均分剩余宽度。
-		a.statusStats(c, p)
-		// 右：数据库与本地状态。
-		a.statusRight(c, p)
-	})
-}
-
-// statusLeft 显示左侧的状态/路径：有操作时是状态文案，否则是根目录概览。
-func (a *App) statusLeft(c *myui.Context, p palette) {
-	label := a.statusLine()
-	subtitle := i18n.T("本地数据库")
-	if strings.TrimSpace(a.status) != "" {
-		subtitle = i18n.T("最近操作")
-	}
-	myui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(11).AlignItems(myui.Center).Children(func() {
-		myui.Box(c).Size(38, 38).Radius(11).Center().Background(p.accent.Alpha(0.12)).Children(func() {
-			myui.Icon(c, iconLogo).Size(18, 18).TextColor(p.accent)
-		})
-		myui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(4).Children(func() {
-			myui.Text(c, subtitle).FontSize(10.5).TextColor(p.muted)
-			myui.Text(c, label).FontSize(12).FontWeight(600).TextColor(p.text).SingleLine()
-		})
-	})
-}
-
-// statusStatItem 是一条底部统计项。
-type statusStatItem struct {
-	label string
-	key   string
-}
-
-// statusStats 均分展示品牌、厂商、车系、版型、图集等数据统计。
-func (a *App) statusStats(c *myui.Context, p palette) {
-	items := []statusStatItem{
-		{i18n.T("品牌"), "brand"},
-		{i18n.T("厂商"), "firm"},
-		{i18n.T("车系"), "series"},
-		{i18n.T("版型"), "youvision"},
-		{i18n.T("图集"), "gallery"},
-	}
-	myui.Row(c).Gap(18).AlignItems(myui.Center).Children(func() {
-		for _, item := range items {
-			stat := item
-			myui.Column(c).Gap(3).AlignItems(myui.Center).Children(func() {
-				myui.Text(c, fmt.Sprintf("%d", a.countInt(stat.key))).FontSize(16).FontWeight(700).TextColor(p.text)
-				myui.Text(c, stat.label).FontSize(10.5).TextColor(p.muted)
-			})
-		}
-	})
-}
-
-// statusRight 显示数据库文件名与本地运行徽标。
-func (a *App) statusRight(c *myui.Context, p palette) {
-	myui.Row(c).Grow(1).Basis(0).MinWidth(0).Justify(myui.End).AlignItems(myui.Center).Gap(10).Children(func() {
-		a.statusPill(c, i18n.T("本地运行"), statusSuccessColor)
-		myui.Text(c, "SQLite").FontSize(10.5).TextColor(p.muted)
-	})
+	myui.Row(c.Key("status-bar")).Absolute().Left(0).Right(0).Bottom(0).Height(bottomBarHeight)
 }
 
 func (a *App) setStatus(message string) {

@@ -130,7 +130,7 @@ func TestFetchRefreshHasNoRowCap(t *testing.T) {
 			i, fmt.Sprintf("图集%d", i))
 	}
 
-	r := ta.fetchRefresh(context.Background(), domain.GalleryFilter{}, catalogBatch, catalogBatch)
+	r := ta.fetchRefresh(context.Background(), domain.GalleryFilter{})
 	if len(r.galleries) != 205 {
 		t.Fatalf("galleries = %d, want 205 (no LIMIT cap)", len(r.galleries))
 	}
@@ -161,9 +161,74 @@ func TestRefreshLoadsDataFromStore(t *testing.T) {
 		t.Fatalf("gallery count = %d, want 1", ta.countInt("gallery"))
 	}
 	tt := myui.NewTester(ta.View, 1200, 800)
+	settled(tt)
+	if err := tt.Click("图集列表"); err != nil {
+		t.Fatalf("click 图集列表: %v", err)
+	}
 	tt.Frame()
 	if !tt.HasText("测试图集") {
 		t.Fatal("loaded gallery title not shown in the UI")
+	}
+}
+
+// 品牌页：logo_local_path 指向 titlepic.png，但磁盘上是历史拼写 titilepic.png 也能加载。
+func TestBrandLogoReadsTypoFilename(t *testing.T) {
+	ta := newTestApp(t)
+	ta.exec(t, "INSERT INTO brand(id, name, logo_local_path) VALUES (7, '测试品牌', '/media/autocar/brand/7/titlepic.png')")
+
+	dir := filepath.Join(ta.paths.Root, "media", "autocar", "brand", "7")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "titilepic.png")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	ta.page = "catalog"
+	ta.catalogEntity = "brand"
+	ta.Refresh()
+	tt := myui.NewTester(ta.View, 1200, 900)
+	tt.Frame()
+
+	if bitmap, ok := ta.coverBitmaps[path]; !ok || bitmap == nil {
+		t.Fatalf("brand logo with typo filename not decoded: %v", ta.coverBitmaps)
+	}
+}
+
+// 品牌页：logo_local_path 为空时回退到 media/autocar/brand/titlepic.png。
+func TestBrandCardFallsBackToTitlePic(t *testing.T) {
+	ta := newTestApp(t)
+	ta.exec(t, "INSERT INTO brand(id, name, logo_local_path) VALUES (7, '测试品牌', '')")
+
+	dir := filepath.Join(ta.paths.Media, "autocar", "brand")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "titlepic.png")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	ta.page = "catalog"
+	ta.catalogEntity = "brand"
+	ta.Refresh()
+	tt := myui.NewTester(ta.View, 1200, 900)
+	tt.Frame()
+
+	bitmap, ok := ta.coverBitmaps[path]
+	if !ok || bitmap == nil {
+		t.Fatalf("fallback brand image not decoded: %v", ta.coverBitmaps)
 	}
 }
 

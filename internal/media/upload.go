@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,4 +126,58 @@ func hashFile(path string) (string, error) {
 		return "", i18n.Errorf("计算图片哈希失败: %w", err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// EnsureSeeded 把随程序打包的 resources/media 整棵目录释放到媒体根目录。
+// 只补建缺失的目录和文件，已有文件一律保留，不删除、不覆盖。
+func EnsureSeeded(mediaRoot string, seed fs.FS) error {
+	const prefix = "resources/media"
+	return fs.WalkDir(seed, prefix, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return i18n.Errorf("读取预置媒体资源失败: %w", err)
+		}
+		rel, err := filepath.Rel(prefix, path)
+		if err != nil {
+			return i18n.Errorf("解析预置媒体路径失败: %w", err)
+		}
+		if rel == "." {
+			return nil
+		}
+		target := filepath.Join(mediaRoot, filepath.FromSlash(rel))
+		if d.IsDir() {
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return i18n.Errorf("创建预置媒体目录失败: %w", err)
+			}
+			return nil
+		}
+		if _, err := os.Stat(target); err == nil {
+			return nil
+		} else if !os.IsNotExist(err) {
+			return i18n.Errorf("检查预置媒体文件失败: %w", err)
+		}
+		data, err := fs.ReadFile(seed, path)
+		if err != nil {
+			return i18n.Errorf("读取预置媒体文件失败: %w", err)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return i18n.Errorf("创建预置媒体目录失败: %w", err)
+		}
+		tmp, err := os.CreateTemp(filepath.Dir(target), ".media-seed-*")
+		if err != nil {
+			return i18n.Errorf("创建临时媒体文件失败: %w", err)
+		}
+		tmpName := tmp.Name()
+		defer os.Remove(tmpName)
+		if _, err := tmp.Write(data); err != nil {
+			_ = tmp.Close()
+			return i18n.Errorf("写入预置媒体文件失败: %w", err)
+		}
+		if err := tmp.Close(); err != nil {
+			return i18n.Errorf("关闭预置媒体文件失败: %w", err)
+		}
+		if err := os.Rename(tmpName, target); err != nil {
+			return i18n.Errorf("安装预置媒体文件失败: %w", err)
+		}
+		return nil
+	})
 }

@@ -50,6 +50,39 @@ func TestLoadUsesExecutableDirectory(t *testing.T) {
 	}
 }
 
+// 实时预览的可执行文件在 .mygo/dev 下，热重建会清空该目录；
+// 数据根目录应固定在项目根目录，保护 data/media 不被删除或覆盖。
+func TestLoadDevPreviewUsesProjectRoot(t *testing.T) {
+	project := t.TempDir()
+	if resolved, err := filepath.EvalSymlinks(project); err == nil {
+		project = resolved
+	}
+	if err := os.WriteFile(filepath.Join(project, "mygo.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(project)
+
+	buildDir := filepath.Join(project, ".mygo", "dev", "windows-amd64")
+	useExecutable(t, filepath.Join(buildDir, "autoCarSystem Dev.exe"))
+
+	paths, err := Load()
+	if err != nil {
+		t.Fatalf("load failed: %v", err)
+	}
+	if paths.Root != project {
+		t.Fatalf("unexpected root: %s, want %s", paths.Root, project)
+	}
+	if paths.Media != filepath.Join(project, "media") {
+		t.Fatalf("unexpected media path: %s", paths.Media)
+	}
+	if err := paths.EnsureDirs(); err != nil {
+		t.Fatalf("ensure dirs failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(project, "media")); err != nil {
+		t.Fatalf("media dir missing: %v", err)
+	}
+}
+
 func TestLoadRejectsUnavailableExecutable(t *testing.T) {
 	orig := executable
 	executable = func() (string, error) { return "", os.ErrNotExist }

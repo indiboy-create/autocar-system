@@ -24,7 +24,10 @@ LIMIT ?
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("读取品牌失败"), err)
 	}
+	return scanBrandRows(rows), nil
+}
 
+func scanBrandRows(rows sqlite.Rows) []domain.Brand {
 	items := make([]domain.Brand, 0, len(rows.Values))
 	for _, v := range rows.Values {
 		if len(v) < 11 {
@@ -44,25 +47,70 @@ LIMIT ?
 			MediaUpdatedAt: valueString(v[10]),
 		})
 	}
-	return items, nil
+	return items
 }
 
-func (s *Service) UpdateBrand(ctx context.Context, id int64, in domain.BrandEdit) error {
-	in.Name = strings.TrimSpace(in.Name)
-	if in.Name == "" {
-		return fmt.Errorf("%s", i18n.T("品牌名称不能为空"))
+// ListBrandsPage 返回从 offset 开始的一页品牌。多取一条用于判断是否还有下一页，
+// 避免额外的 COUNT 查询；more 为 true 表示后面还有数据。
+func (s *Service) ListBrandsPage(ctx context.Context, offset, limit int) ([]domain.Brand, bool, error) {
+	if limit <= 0 {
+		limit = 60
 	}
-	_, err := s.store.Execute(ctx, `
-UPDATE brand
-SET name = ?, firstletter = ?, logo_url = ?, logo_local_path = ?,
-    state = ?, havenewenergy = ?, api_sort = ?, user_updated_at = ?
-WHERE id = ?
-`, in.Name, in.FirstLetter, in.LogoURL, in.LogoLocalPath,
-		in.State, in.HaveNewEnergy, in.APISort, nowString(), id)
+	rows, err := s.store.Query(ctx, `
+SELECT id, name, firstletter, logo_url, logo_local_path,
+       state, havenewenergy, api_sort, collected_at, user_updated_at, media_updated_at
+FROM brand
+ORDER BY id
+LIMIT ? OFFSET ?
+`, limit+1, offset)
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("更新品牌失败"), err)
+		return nil, false, fmt.Errorf("%s: %w", i18n.T("读取品牌失败"), err)
 	}
-	return nil
+
+	items := scanBrandRows(rows)
+	more := len(items) > limit
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
+}
+
+// SearchBrandsPage 按关键词在数据库中搜索品牌，返回从 offset 开始的一页。
+// 支持名称、首字母与精确 ID 匹配，多取一条判断是否有下一页。
+func (s *Service) SearchBrandsPage(ctx context.Context, keyword string, offset, limit int) ([]domain.Brand, bool, error) {
+	keyword = strings.TrimSpace(keyword)
+	if limit <= 0 {
+		limit = 60
+	}
+	const columns = `
+SELECT id, name, firstletter, logo_url, logo_local_path,
+       state, havenewenergy, api_sort, collected_at, user_updated_at, media_updated_at
+FROM brand`
+	const order = `
+ORDER BY id
+LIMIT ? OFFSET ?`
+
+	var rows sqlite.Rows
+	var err error
+	if keyword == "" {
+		rows, err = s.store.Query(ctx, columns+order, limit+1, offset)
+	} else if id, parseErr := strconv.ParseInt(keyword, 10, 64); parseErr == nil {
+		rows, err = s.store.Query(ctx, columns+`
+WHERE id = ?`+order, id, limit+1, offset)
+	} else {
+		like := "%" + keyword + "%"
+		rows, err = s.store.Query(ctx, columns+`
+WHERE name LIKE ? OR firstletter LIKE ?`+order, like, like, limit+1, offset)
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("%s: %w", i18n.T("搜索品牌失败"), err)
+	}
+	items := scanBrandRows(rows)
+	more := len(items) > limit
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
 }
 
 func (s *Service) ListFirms(ctx context.Context, limit int) ([]domain.Firm, error) {
@@ -77,6 +125,10 @@ LIMIT ?
 		return nil, fmt.Errorf("%s: %w", i18n.T("读取厂商失败"), err)
 	}
 
+	return scanFirmRows(rows), nil
+}
+
+func scanFirmRows(rows sqlite.Rows) []domain.Firm {
 	items := make([]domain.Firm, 0, len(rows.Values))
 	for _, v := range rows.Values {
 		if len(v) < 10 {
@@ -95,23 +147,67 @@ LIMIT ?
 			MediaUpdatedAt: valueString(v[9]),
 		})
 	}
-	return items, nil
+	return items
 }
 
-func (s *Service) UpdateFirm(ctx context.Context, id int64, in domain.FirmEdit) error {
-	in.Name = strings.TrimSpace(in.Name)
-	if in.Name == "" {
-		return fmt.Errorf("%s", i18n.T("厂商名称不能为空"))
+// ListFirmsPage 返回从 offset 开始的一页厂商，多取一条判断是否有下一页。
+func (s *Service) ListFirmsPage(ctx context.Context, offset, limit int) ([]domain.Firm, bool, error) {
+	if limit <= 0 {
+		limit = 60
 	}
-	_, err := s.store.Execute(ctx, `
-UPDATE firm
-SET name = ?, py = ?, link = ?, logo_url = ?, logo_local_path = ?, user_updated_at = ?
-WHERE id = ?
-`, in.Name, in.PY, in.Link, in.LogoURL, in.LogoLocalPath, nowString(), id)
+	rows, err := s.store.Query(ctx, `
+SELECT id, brand_id, name, py, link, logo_url, logo_local_path,
+       collected_at, user_updated_at, media_updated_at
+FROM firm
+ORDER BY brand_id, id
+LIMIT ? OFFSET ?
+`, limit+1, offset)
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("更新厂商失败"), err)
+		return nil, false, fmt.Errorf("%s: %w", i18n.T("读取厂商失败"), err)
 	}
-	return nil
+
+	items := scanFirmRows(rows)
+	more := len(items) > limit
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
+}
+
+// SearchFirmsPage 按关键词在数据库中搜索厂商，支持名称、拼音与精确 ID 匹配。
+func (s *Service) SearchFirmsPage(ctx context.Context, keyword string, offset, limit int) ([]domain.Firm, bool, error) {
+	keyword = strings.TrimSpace(keyword)
+	if limit <= 0 {
+		limit = 60
+	}
+	const columns = `
+SELECT id, brand_id, name, py, link, logo_url, logo_local_path,
+       collected_at, user_updated_at, media_updated_at
+FROM firm`
+	const order = `
+ORDER BY brand_id, id
+LIMIT ? OFFSET ?`
+	var rows sqlite.Rows
+	var err error
+	if keyword == "" {
+		rows, err = s.store.Query(ctx, columns+order, limit+1, offset)
+	} else if id, parseErr := strconv.ParseInt(keyword, 10, 64); parseErr == nil {
+		rows, err = s.store.Query(ctx, columns+`
+WHERE id = ?`+order, id, limit+1, offset)
+	} else {
+		like := "%" + keyword + "%"
+		rows, err = s.store.Query(ctx, columns+`
+WHERE name LIKE ? OR py LIKE ?`+order, like, like, limit+1, offset)
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("%s: %w", i18n.T("搜索厂商失败"), err)
+	}
+	items := scanFirmRows(rows)
+	more := len(items) > limit
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
 }
 
 func (s *Service) ListSeries(ctx context.Context, limit int) ([]domain.Series, error) {
@@ -155,6 +251,39 @@ LIMIT ?`, like, like, like, limit)
 		return nil, fmt.Errorf("%s: %w", i18n.T("搜索车系失败"), err)
 	}
 	return scanSeriesRows(rows), nil
+}
+
+// SearchSeriesPage 按关键词在数据库中搜索车系，返回从 offset 开始的一页。
+// 支持名称、拼音、车组名称与精确 ID 匹配，多取一条判断是否有下一页。
+func (s *Service) SearchSeriesPage(ctx context.Context, keyword string, offset, limit int) ([]domain.Series, bool, error) {
+	keyword = strings.TrimSpace(keyword)
+	if limit <= 0 {
+		limit = 60
+	}
+	const order = `
+ORDER BY brand_id, firm_id, id
+LIMIT ? OFFSET ?`
+	var rows sqlite.Rows
+	var err error
+	if keyword == "" {
+		rows, err = s.store.Query(ctx, seriesQuerySQL+order, limit+1, offset)
+	} else if id, parseErr := strconv.ParseInt(keyword, 10, 64); parseErr == nil {
+		rows, err = s.store.Query(ctx, seriesQuerySQL+`
+WHERE id = ?`+order, id, limit+1, offset)
+	} else {
+		like := "%" + keyword + "%"
+		rows, err = s.store.Query(ctx, seriesQuerySQL+`
+WHERE name LIKE ? OR py LIKE ? OR group_name LIKE ?`+order, like, like, like, limit+1, offset)
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("%s: %w", i18n.T("搜索车系失败"), err)
+	}
+	items := scanSeriesRows(rows)
+	more := len(items) > limit
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
 }
 
 const seriesQuerySQL = `
@@ -267,26 +396,23 @@ func (s *Service) FilterSeries(ctx context.Context, f SeriesFilter) ([]domain.Se
 	return scanSeriesRows(rows), nil
 }
 
-func (s *Service) UpdateSeries(ctx context.Context, id int64, in domain.SeriesEdit) error {
-	in.Name = strings.TrimSpace(in.Name)
-	if in.Name == "" {
-		return fmt.Errorf("%s", i18n.T("车系名称不能为空"))
+// ListSeriesPage 返回从 offset 开始的一页车系，多取一条判断是否有下一页。
+func (s *Service) ListSeriesPage(ctx context.Context, offset, limit int) ([]domain.Series, bool, error) {
+	if limit <= 0 {
+		limit = 60
 	}
-	_, err := s.store.Execute(ctx, `
-UPDATE series
-SET name = ?, group_name = ?, state = ?, price_min = ?, price_max = ?,
-    place = ?, py = ?, logo_url = ?, logo_local_path = ?, level_name = ?,
-    newenergy = ?, is_foreign_car = ?, is_top = ?, fuel_types = ?, cartypename = ?,
-    tag1 = ?, "rank" = ?, uv_rank = ?, hot_rank = ?, user_updated_at = ?
-WHERE id = ?
-`, in.Name, in.GroupName, in.State, in.PriceMin, in.PriceMax,
-		in.Place, in.PY, in.LogoURL, in.LogoLocalPath, in.LevelName,
-		in.NewEnergy, in.IsForeignCar, in.IsTop, in.FuelTypes, in.CartypeName,
-		in.Tag1, in.Rank, in.UVRank, in.HotRank, nowString(), id)
+	rows, err := s.store.Query(ctx, seriesQuerySQL+`
+ORDER BY brand_id, firm_id, id
+LIMIT ? OFFSET ?`, limit+1, offset)
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("更新车系失败"), err)
+		return nil, false, fmt.Errorf("%s: %w", i18n.T("读取车系失败"), err)
 	}
-	return nil
+	items := scanSeriesRows(rows)
+	more := len(items) > limit
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
 }
 
 func (s *Service) ListSpecs(ctx context.Context, limit int) ([]domain.Spec, error) {
@@ -304,6 +430,10 @@ LIMIT ?
 		return nil, fmt.Errorf("%s: %w", i18n.T("读取年款失败"), err)
 	}
 
+	return scanSpecRows(rows), nil
+}
+
+func scanSpecRows(rows sqlite.Rows) []domain.Spec {
 	items := make([]domain.Spec, 0, len(rows.Values))
 	for _, v := range rows.Values {
 		if len(v) < 24 {
@@ -336,31 +466,72 @@ LIMIT ?
 			MediaUpdatedAt:      valueString(v[23]),
 		})
 	}
-	return items, nil
+	return items
 }
 
-func (s *Service) UpdateSpec(ctx context.Context, id int64, in domain.SpecEdit) error {
-	in.Name = strings.TrimSpace(in.Name)
-	if in.Name == "" {
-		return fmt.Errorf("%s", i18n.T("年款名称不能为空"))
+// ListSpecsPage 返回从 offset 开始的一页年款，多取一条判断是否有下一页。
+func (s *Service) ListSpecsPage(ctx context.Context, offset, limit int) ([]domain.Spec, bool, error) {
+	if limit <= 0 {
+		limit = 60
 	}
-	_, err := s.store.Execute(ctx, `
-UPDATE spec
-SET group_name = ?, name = ?, series_name = ?, model_year = ?, body_form = ?,
-    price_min = ?, price_max = ?, news_price = ?, news_id = ?, dealer_id = ?,
-    sale_type = ?, image_url = ?, image_local_path = ?, image_sha256 = ?,
-    white_image_url = ?, white_image_local_path = ?, white_image_sha256 = ?,
-    user_updated_at = ?
-WHERE id = ?
-`, in.GroupName, in.Name, in.SeriesName, in.ModelYear, in.BodyForm,
-		in.PriceMin, in.PriceMax, in.NewsPrice, in.NewsID, in.DealerID,
-		in.SaleType, in.ImageURL, in.ImageLocalPath, in.ImageSHA256,
-		in.WhiteImageURL, in.WhiteImageLocalPath, in.WhiteImageSHA256,
-		nowString(), id)
+	rows, err := s.store.Query(ctx, `SELECT id, brand_id, firm_id, series_id, group_name, name, series_name,
+       model_year, body_form, price_min, price_max, news_price, news_id, dealer_id,
+       sale_type, image_url, image_local_path, image_sha256,
+       white_image_url, white_image_local_path, white_image_sha256,
+       collected_at, user_updated_at, media_updated_at
+FROM spec
+ORDER BY brand_id, firm_id, series_id, id
+LIMIT ? OFFSET ?`, limit+1, offset)
 	if err != nil {
-		return fmt.Errorf("%s: %w", i18n.T("更新年款失败"), err)
+		return nil, false, fmt.Errorf("%s: %w", i18n.T("读取年款失败"), err)
 	}
-	return nil
+	items := scanSpecRows(rows)
+	more := len(items) > limit
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
+}
+
+// SearchSpecsPage 按关键词在数据库中搜索年款，支持名称、车系名、车组名、
+// 年款与精确 ID 匹配，返回从 offset 开始的一页，多取一条判断是否有下一页。
+func (s *Service) SearchSpecsPage(ctx context.Context, keyword string, offset, limit int) ([]domain.Spec, bool, error) {
+	keyword = strings.TrimSpace(keyword)
+	if limit <= 0 {
+		limit = 60
+	}
+	const columns = `
+SELECT id, brand_id, firm_id, series_id, group_name, name, series_name,
+       model_year, body_form, price_min, price_max, news_price, news_id, dealer_id,
+       sale_type, image_url, image_local_path, image_sha256,
+       white_image_url, white_image_local_path, white_image_sha256,
+       collected_at, user_updated_at, media_updated_at
+FROM spec`
+	const order = `
+ORDER BY brand_id, firm_id, series_id, id
+LIMIT ? OFFSET ?`
+	var rows sqlite.Rows
+	var err error
+	if keyword == "" {
+		rows, err = s.store.Query(ctx, columns+order, limit+1, offset)
+	} else if id, parseErr := strconv.ParseInt(keyword, 10, 64); parseErr == nil {
+		rows, err = s.store.Query(ctx, columns+`
+WHERE id = ?`+order, id, limit+1, offset)
+	} else {
+		like := "%" + keyword + "%"
+		rows, err = s.store.Query(ctx, columns+`
+WHERE name LIKE ? OR series_name LIKE ? OR group_name LIKE ? OR model_year LIKE ?`+order,
+			like, like, like, like, limit+1, offset)
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("%s: %w", i18n.T("搜索年款失败"), err)
+	}
+	items := scanSpecRows(rows)
+	more := len(items) > limit
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
 }
 
 // limitRows 把非正数 limit 视为“不限条数”：SQLite 的负 LIMIT 返回全部行。

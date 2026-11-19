@@ -82,7 +82,7 @@ func (a *App) renderUpdateSettings(c *myui.Context) {
 			}
 		})
 		a.settingsRow(c, fmt.Sprintf(i18n.T("当前版本 %s"), mygo.App.Version()), "", func() {
-			if myui.Button(c.Key("check-updates"), i18n.T("检查更新")).Clicked() {
+			if myui.Button(c.Key("check-updates"), i18n.T("检查更新")).Cursor(myui.CursorPointer).Clicked() {
 				checkForUpdates()
 			}
 		})

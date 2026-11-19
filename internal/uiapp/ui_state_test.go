@@ -1,6 +1,7 @@
 package uiapp
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -52,8 +53,8 @@ func TestBackShortcut(t *testing.T) {
 
 	tt.Key(0, ui.KeyBack)
 	tt.Frame()
-	if ta.page != "gallery" {
-		t.Fatalf("page after KeyBack = %q, want gallery", ta.page)
+	if ta.page != "home" {
+		t.Fatalf("page after KeyBack = %q, want home", ta.page)
 	}
 }
 
@@ -61,6 +62,10 @@ func TestBackShortcut(t *testing.T) {
 func TestFocusSearchShortcut(t *testing.T) {
 	ta := newTestApp(t)
 	tt := ui.NewTester(ta.View, 1200, 800)
+	settled(tt)
+	if err := tt.Click("图集列表"); err != nil {
+		t.Fatalf("click 图集列表: %v", err)
+	}
 	tt.Frame()
 
 	tt.Key(ui.Cmd, ui.KeyF)
@@ -70,34 +75,37 @@ func TestFocusSearchShortcut(t *testing.T) {
 	}
 }
 
-// 状态栏常驻可见：setStatus 写入的反馈会渲染出来，不再只停留在内存里。
-func TestStatusBarShowsFeedback(t *testing.T) {
+// 底部状态栏不渲染操作反馈，setStatus 只保留在内存中供设置页使用。
+func TestStatusBarHidesFeedback(t *testing.T) {
 	ta := newTestApp(t)
 	ta.setStatus("图集 #3 已创建，请选择图片上传")
 	tt := ui.NewTester(ta.View, 1200, 800)
+	settled(tt)
+	if err := tt.Click("图集列表"); err != nil {
+		t.Fatalf("click 图集列表: %v", err)
+	}
 	tt.Frame()
 
-	if !tt.HasText("状态：图集 #3 已创建，请选择图片上传") {
-		t.Fatalf("status feedback not visible; texts: %v", tt.Texts())
+	if tt.HasText("状态：图集 #3 已创建，请选择图片上传") {
+		t.Fatalf("status feedback should not be shown in the bottom bar; texts: %v", tt.Texts())
 	}
 }
 
-// 清除状态后状态栏回落到根目录/计数概览。
-func TestStatusBarShowsSummaryWhenIdle(t *testing.T) {
+// 底部栏只保留框架：空闲时也不再显示根目录概览。
+func TestStatusBarHidesSummaryWhenIdle(t *testing.T) {
 	ta := newTestApp(t)
 	ta.status = ""
 	tt := ui.NewTester(ta.View, 1200, 800)
+	settled(tt)
+	if err := tt.Click("图集列表"); err != nil {
+		t.Fatalf("click 图集列表: %v", err)
+	}
 	tt.Frame()
 
-	found := false
 	for _, text := range tt.Texts() {
-		if len(text) > len("根目录：") && text[:len("根目录：")] == "根目录：" {
-			found = true
-			break
+		if len(text) >= len("根目录：") && text[:len("根目录：")] == "根目录：" {
+			t.Fatalf("idle summary should not be shown in the bottom bar; texts: %v", tt.Texts())
 		}
-	}
-	if !found {
-		t.Fatalf("idle summary not visible; texts: %v", tt.Texts())
 	}
 }
 
@@ -107,8 +115,8 @@ func TestSidebarNavigationChangesPage(t *testing.T) {
 	tt := ui.NewTester(ta.View, 1200, 800)
 	settled(tt)
 
-	if ta.page != "gallery" {
-		t.Fatalf("initial page = %q, want gallery", ta.page)
+	if ta.page != "home" {
+		t.Fatalf("initial page = %q, want home", ta.page)
 	}
 	if err := tt.Click("车型查询"); err != nil {
 		t.Fatalf("click 车型查询: %v", err)
@@ -139,25 +147,74 @@ func TestNavigationBackAndForward(t *testing.T) {
 		t.Fatalf("page = %q, want seriesQuery", ta.page)
 	}
 
-	// 后退回到图集页。
+	// 后退回到首页。
 	if err := tt.Click("后退"); err != nil {
 		t.Fatalf("click 后退: %v", err)
 	}
 	tt.Frame()
-	if ta.page != "gallery" {
-		t.Fatalf("page after back = %q, want gallery", ta.page)
+	if ta.page != "home" {
+		t.Fatalf("page after back = %q, want home", ta.page)
 	}
 	if len(ta.forward) == 0 {
 		t.Fatal("back did not record forward stack")
 	}
 
-	// 前进回到查询页。
-	if err := tt.Click("前进"); err != nil {
-		t.Fatalf("click 前进: %v", err)
-	}
+	// 前进回到查询页（首页不渲染悬浮导航按钮，用快捷键前进）。
+	tt.Key(0, ui.KeyForward)
 	tt.Frame()
 	if ta.page != "seriesQuery" {
 		t.Fatalf("page after forward = %q, want seriesQuery", ta.page)
+	}
+}
+
+// 车型查询整页滚动：标题、查询卡片和结果分行都随同一个滚动区移动。
+func TestSeriesQueryUsesPageScroll(t *testing.T) {
+	ta := newTestApp(t)
+	seedSeries(t, ta, 60)
+	ta.page = "seriesQuery"
+	tt := ui.NewTester(ta.View, 1000, 700)
+	settled(tt)
+	if ta.contentScroll.MaxY <= 0 {
+		t.Fatalf("series query content did not overflow: MaxY = %f", ta.contentScroll.MaxY)
+	}
+}
+
+// 品牌页用框架的虚拟列表：只构建可见行，滚到底部才构建末尾卡片行。
+func TestBrandCatalogVirtualList(t *testing.T) {
+	ta := newTestApp(t)
+	ta.exec(t, "DELETE FROM brand")
+	for i := 1; i <= 60; i++ {
+		ta.exec(t, fmt.Sprintf("INSERT INTO brand(id, name) VALUES (%d, '品牌%03d')", i, i))
+	}
+	ta.Refresh()
+	ta.page = "catalog"
+	ta.catalogEntity = "brand"
+
+	tt := ui.NewTester(ta.View, 1200, 900)
+	tt.Frame()
+	_, last := ta.brandList.Visible()
+	if last <= 4 {
+		t.Fatalf("unexpected initial visible rows: first=%d last=%d", 0, last)
+	}
+	if !tt.HasText("品牌001") || tt.HasText("品牌060") {
+		t.Fatalf("initial virtual rows are wrong; texts: %v", tt.Texts())
+	}
+
+	ta.brandList.ScrollToEnd()
+	tt.Frame()
+	_, last = ta.brandList.Visible()
+	if last <= 4 || !tt.HasText("品牌060") {
+		t.Fatalf("last rows not built after ScrollToEnd: last=%d; texts: %v", last, tt.Texts())
+	}
+}
+
+// 首页内容足够长，常规窗口下中间区域就会出现滚动条。
+func TestHomeContentOverflows(t *testing.T) {
+	ta := newTestApp(t)
+	tt := ui.NewTester(ta.View, 1200, 800)
+	settled(tt)
+	if ta.contentScroll.MaxY <= 0 {
+		t.Fatalf("home content did not overflow: MaxY = %f", ta.contentScroll.MaxY)
 	}
 }
 

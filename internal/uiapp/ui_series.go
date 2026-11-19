@@ -3,6 +3,7 @@ package uiapp
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -29,22 +30,127 @@ func (a *App) renderPage(c *myui.Context) {
 		a.renderYuvision(c)
 	case "catalog":
 		a.renderCatalog(c)
+	case "brandDetail":
+		a.renderBrandDetail(c)
+	case "firmDetail":
+		a.renderFirmDetail(c)
+	case "seriesDetail":
+		a.renderSeriesDetail(c)
+	case "specDetail":
+		a.renderSpecDetail(c)
 	default:
 		a.renderGallery(c)
 	}
 }
 
-// renderHome 是首页：欢迎信息与应用概况卡片。
+// renderHome 是按 mygo-music 首页重做的首页：问候语、数据概览、
+// 最近车系和品牌导航。内容足够长，中间区域会产生滚动条，
+// 顶部滚动边缘与底部状态栏固定悬浮在内容之上。
 func (a *App) renderHome(c *myui.Context) {
 	p := paletteFor(c.Theme().Dark)
+
+	greeting := i18n.T("晚上好")
+	switch hour := time.Now().Hour(); {
+	case hour < 11:
+		greeting = i18n.T("早上好")
+	case hour < 18:
+		greeting = i18n.T("下午好")
+	}
+
 	myui.Column(c).Gap(12).Children(func() {
-		myui.Text(c, i18n.T("首页")).FontSize(22).FontWeight(700).TextColor(p.text)
-		myui.Text(c, i18n.T("欢迎使用版型图集管理")).FontSize(13).TextColor(p.muted)
-		a.settingsGroup(c, func() {
-			a.settingsRow(c, i18n.T("应用名称"), "autoCarSystem", func() {})
-			a.settingsRow(c, i18n.T("描述"), i18n.T("本地图集与版型数据管理工具"), func() {})
+		myui.Text(c, greeting).FontSize(30).FontWeight(700).TextColor(p.text)
+		myui.Text(c, i18n.Tf("今天是 %s", time.Now().Format("2006-01-02"))).
+			FontSize(12).FontWeight(600).TextColor(p.muted)
+
+		a.homeSection(c, i18n.T("数据概览"), func() {
+			a.settingsGroup(c, func() {
+				for _, item := range []struct{ label, key string }{
+					{i18n.T("品牌"), "brand"},
+					{i18n.T("厂商"), "firm"},
+					{i18n.T("车系"), "series"},
+					{i18n.T("版型"), "youvision"},
+					{i18n.T("图集"), "gallery"},
+				} {
+					a.settingsRow(c, item.label, fmt.Sprintf("%d", a.countInt(item.key)), func() {})
+				}
+			})
+		})
+
+		a.homeSection(c, i18n.T("最近车系"), func() {
+			a.ensureSeriesBrowse()
+			if len(a.seriesBrowse) == 0 {
+				a.seriesSkeleton(c)
+				return
+			}
+			brandNames := make(map[int64]string, len(a.brands))
+			for _, b := range a.brands {
+				brandNames[b.ID] = b.Name
+			}
+			firmNames := make(map[int64]string, len(a.firms))
+			for _, f := range a.firms {
+				firmNames[f.ID] = f.Name
+			}
+			for i, item := range a.seriesBrowse {
+				if i >= 6 {
+					break
+				}
+				a.seriesRow(c, item, brandNames, firmNames, p)
+			}
+		})
+
+		a.homeSection(c, i18n.T("品牌导航"), func() {
+			type brandCard struct {
+				name string
+				id   int64
+			}
+			cards := make([]brandCard, 0, 6)
+			for _, b := range a.brands {
+				cards = append(cards, brandCard{b.Name, b.ID})
+				if len(cards) == 6 {
+					break
+				}
+			}
+			for len(cards) < 6 {
+				cards = append(cards, brandCard{fmt.Sprintf("%s %d", i18n.T("品牌"), len(cards)+1), 0})
+			}
+			myui.Grid(c).Columns(3).GapX(12).GapY(12).Children(func() {
+				for _, item := range cards {
+					a.homeBrandCard(c, item.name, item.id, p)
+				}
+			})
 		})
 	})
+}
+
+func (a *App) homeSection(c *myui.Context, title string, build func()) {
+	p := paletteFor(c.Theme().Dark)
+	myui.Column(c).Gap(12).Margin(12, 0, 0, 0).Children(func() {
+		myui.Text(c, title).FontSize(19).FontWeight(700).TextColor(p.text)
+		build()
+	})
+}
+
+// homeBrandCard 是首页品牌导航卡片，点击进入品牌落地页；占位卡片（id=0）不可点击。
+func (a *App) homeBrandCard(c *myui.Context, name string, id int64, p palette) {
+	card := myui.ButtonBase(c.Key("home-brand-"+fmt.Sprintf("%d-%s", id, name))).
+		Height(96).Padding(14).Gap(10).Radius(12).
+		Background(p.bg).Border(1, p.hairline).AlignItems(myui.Center).
+		FocusRing(false).Label(name)
+	if card.Hovered() && id > 0 {
+		card.Background(p.hover)
+	}
+	card.Children(func() {
+		myui.Box(c).Size(36, 36).Radius(10).Center().Background(p.accent.Alpha(0.12)).Children(func() {
+			myui.Icon(c, iconCatalog).Size(18, 18).TextColor(p.accent)
+		})
+		myui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(3).Children(func() {
+			myui.Text(c, name).FontSize(13).FontWeight(600).SingleLine()
+			myui.Text(c, i18n.T("查看品牌车系")).FontSize(11).TextColor(p.muted).SingleLine()
+		})
+	})
+	if id > 0 && card.Clicked() {
+		a.open(navRoute{page: "brandDetail", brandID: id})
+	}
 }
 
 // renderUserCenter 是用户中心：当前环境与数据目录信息。
@@ -59,23 +165,25 @@ func (a *App) renderUserCenter(c *myui.Context) {
 	})
 }
 
+// renderSeriesQuery 按首页的三段式布局绘制：标题、查询卡片与结果区
+// 都在中间滚动内容里，随内容一起滚动，页面内不再有第二套固定栏。
 func (a *App) renderSeriesQuery(c *myui.Context) {
 	p := paletteFor(c.Theme().Dark)
-	myui.Column(c).Grow(1).Gap(12).Children(func() {
-		myui.Text(c, i18n.T("车型查询")).FontSize(22).FontWeight(700).TextColor(p.text)
+	myui.Column(c).Gap(12).Children(func() {
+		myui.Text(c, i18n.T("车型查询")).FontSize(30).FontWeight(700).TextColor(p.text)
 
 		a.settingsGroup(c, func() {
 			a.settingsRow(c, i18n.T("关键词"), i18n.T("按车系名称、拼音或 ID 查询"), func() {
 				submitted := myui.TextInput(c.Key("series-query-keyword"), &a.seriesQueryKeyword).
 					Placeholder(i18n.T("输入关键词")).Label(i18n.T("输入关键词")).Width(240).Submitted()
-				if myui.Button(c.Key("series-query-run"), i18n.T("查询")).Clicked() {
+				if myui.Button(c.Key("series-query-run"), i18n.T("查询")).Cursor(myui.CursorPointer).Clicked() {
 					submitted = true
 				}
 				if submitted {
 					a.runSeriesSearch()
 				}
 				if strings.TrimSpace(a.seriesQueryKeyword) != "" &&
-					myui.Button(c.Key("series-query-clear"), i18n.T("清除")).Clicked() {
+					myui.Button(c.Key("series-query-clear"), i18n.T("清除")).Cursor(myui.CursorPointer).Clicked() {
 					a.clearSeriesSearch()
 				}
 			})
@@ -83,10 +191,61 @@ func (a *App) renderSeriesQuery(c *myui.Context) {
 
 		if strings.TrimSpace(a.seriesQueryKeyword) == "" {
 			a.ensureSeriesBrowse()
-			a.renderSeriesResults(c, a.seriesBrowse, a.seriesBrowseLoading, a.seriesBrowseErr, a.retrySeriesBrowse, &a.seriesList)
+			a.renderSeriesQueryResults(c, a.seriesBrowse, a.seriesBrowseLoading, a.seriesBrowseErr, a.retrySeriesBrowse, &a.queryVisible)
 			return
 		}
-		a.renderSeriesResults(c, a.seriesQueryResults, a.seriesQueryLoading, a.seriesQueryErr, a.runSeriesSearch, &a.seriesList)
+		a.renderSeriesQueryResults(c, a.seriesQueryResults, a.seriesQueryLoading, a.seriesQueryErr, a.runSeriesSearch, &a.queryVisible)
+	})
+}
+
+// renderSeriesQueryResults 用静态行分批展示查询结果，整页只有一个滚动条。
+func (a *App) renderSeriesQueryResults(c *myui.Context, items []domain.Series, loading bool, errText string, retry func(), visible *int) {
+	p := paletteFor(c.Theme().Dark)
+	a.homeSection(c, i18n.T("查询结果"), func() {
+		myui.Row(c).AlignItems(myui.Center).Gap(10).Children(func() {
+			switch {
+			case loading:
+				myui.Text(c, i18n.T("查询中…")).FontSize(13).TextColor(p.muted)
+			case errText != "":
+				myui.Text(c, fmt.Sprintf(i18n.T("查询失败：%s"), errText)).FontSize(13).TextColor(p.muted).Grow(1).SingleLine()
+				if myui.Button(c, i18n.T("重试")).Cursor(myui.CursorPointer).Clicked() {
+					retry()
+				}
+			default:
+				myui.Text(c, fmt.Sprintf(i18n.T("共 %d 个车系"), len(items))).FontSize(13).TextColor(p.muted)
+			}
+		})
+
+		if len(items) == 0 {
+			if loading {
+				a.seriesSkeleton(c)
+			} else if errText == "" {
+				myui.Text(c, i18n.T("没有匹配的车系。")).FontSize(13).TextColor(p.muted)
+			}
+			return
+		}
+
+		brandNames := make(map[int64]string, len(a.brands))
+		for _, b := range a.brands {
+			brandNames[b.ID] = b.Name
+		}
+		firmNames := make(map[int64]string, len(a.firms))
+		for _, f := range a.firms {
+			firmNames[f.ID] = f.Name
+		}
+		limit := *visible
+		if limit <= 0 {
+			limit = 30
+		}
+		if limit > len(items) {
+			limit = len(items)
+		}
+		for i := 0; i < limit; i++ {
+			a.seriesRow(c, items[i], brandNames, firmNames, p)
+		}
+		if limit < len(items) && myui.Button(c, i18n.Tf("显示更多（剩余 %d 条）", len(items)-limit)).Cursor(myui.CursorPointer).Clicked() {
+			*visible = limit + 30
+		}
 	})
 }
 
@@ -231,8 +390,8 @@ func (a *App) renderSeriesFilter(c *myui.Context) {
 	// 语言切换后级别文案会变化，旧文案不在新选项里时也重置为“全部”。
 	a.seriesFilterLevel = normalizeFilterChoice(a.seriesFilterLevel, levelLabels())
 
-	myui.Column(c).Grow(1).Gap(12).Children(func() {
-		myui.Text(c, i18n.T("筛选查询")).FontSize(22).FontWeight(700).TextColor(p.text)
+	myui.Column(c).Gap(12).Children(func() {
+		myui.Text(c, i18n.T("筛选查询")).FontSize(30).FontWeight(700).TextColor(p.text)
 
 		a.settingsGroup(c, func() {
 			a.settingsRow(c, i18n.T("品牌 / 车型"), i18n.T("先选品牌，车型选项随品牌联动"), func() {
@@ -246,7 +405,7 @@ func (a *App) renderSeriesFilter(c *myui.Context) {
 			a.settingsRow(c, i18n.T("关键字"), i18n.T("匹配车系名称、拼音或车组；纯数字按 ID 查询"), func() {
 				submitted := myui.TextInput(c.Key("series-filter-keyword"), &a.seriesFilterKeyword).
 					Placeholder(i18n.T("输入关键词")).Label(i18n.T("输入关键词")).Width(240).Submitted()
-				if myui.Button(c.Key("series-filter-run"), i18n.T("查询")).Clicked() {
+				if myui.Button(c.Key("series-filter-run"), i18n.T("查询")).Cursor(myui.CursorPointer).Clicked() {
 					submitted = true
 				}
 				if submitted {
@@ -259,58 +418,11 @@ func (a *App) renderSeriesFilter(c *myui.Context) {
 		if !a.seriesFilterLoaded && !a.seriesFilterLoading && a.seriesFilterErr == "" {
 			a.runSeriesFilter()
 		}
-		a.renderSeriesResults(c, a.seriesFilterResults, a.seriesFilterLoading, a.seriesFilterErr, a.runSeriesFilter, &a.seriesFilterList)
+		a.renderSeriesQueryResults(c, a.seriesFilterResults, a.seriesFilterLoading, a.seriesFilterErr, a.runSeriesFilter, &a.filterVisible)
 	})
 }
 
-// renderSeriesResults 绘制结果计数、加载/错误状态和虚拟列表本身。
-// 列表只构建可视行，几万条车系也不会一次性排版。
-func (a *App) renderSeriesResults(c *myui.Context, items []domain.Series, loading bool, errText string, retry func(), state *myui.ListState) {
-	p := paletteFor(c.Theme().Dark)
-	myui.Row(c).AlignItems(myui.Center).Gap(10).Children(func() {
-		switch {
-		case loading:
-			myui.Text(c, i18n.T("查询中…")).FontSize(13).TextColor(p.muted)
-		case errText != "":
-			myui.Text(c, fmt.Sprintf(i18n.T("查询失败：%s"), errText)).FontSize(13).TextColor(p.muted).Grow(1).SingleLine()
-			if myui.Button(c, i18n.T("重试")).Clicked() {
-				retry()
-			}
-		default:
-			myui.Text(c, fmt.Sprintf(i18n.T("共 %d 个车系"), len(items))).FontSize(13).TextColor(p.muted)
-		}
-	})
-
-	if len(items) == 0 {
-		if loading {
-			a.seriesSkeleton(c)
-			return
-		}
-		if errText == "" {
-			myui.Text(c, i18n.T("没有匹配的车系。")).FontSize(13).TextColor(p.muted)
-		}
-		return
-	}
-
-	brandNames := make(map[int64]string, len(a.brands))
-	for _, item := range a.brands {
-		brandNames[item.ID] = item.Name
-	}
-	firmNames := make(map[int64]string, len(a.firms))
-	for _, item := range a.firms {
-		firmNames[item.ID] = item.Name
-	}
-
-	// 负 margin 让列表延伸到窗口右缘（抵消外层 content 列的右 padding），
-	// 滚动条贴住最右侧，与普通页 ScrollbarInsets 右 0 的效果一致；
-	// 行内容再用内层右 padding 缩进，与页面上方元素对齐。
-	myui.List(c, state, len(items), func(i int) {
-		a.seriesRow(c, items[i], brandNames, firmNames, p)
-	}).ItemKey(func(i int) any { return items[i].ID }).Grow(1).
-		Margin(0, -22, 0, 0).Padding(0, 22, 0, 0)
-}
-
-// seriesRowHeight 是车系行的固定高度，与虚拟列表的估算一致。
+// seriesRowHeight 是车系行的固定高度。
 const seriesRowHeight = 58
 
 // seriesRow 是 music 歌曲行的车系版本：封面、名称/元信息两行、
@@ -382,15 +494,36 @@ func (a *App) seriesCover(c *myui.Context, item domain.Series, brand string, p p
 
 // seriesLogo 解析车系 Logo 的本地路径并走图集相同的位图缓存；
 // 只有可视行会调用，缺图时缓存 nil，不反复读盘。
+// seriesLogo 解析图片路径：相对路径先按程序目录查找，再按当前工作目录查找。
+// 品牌图片历史上两种拼写并存（titlepic / titilepic），两者都尝试。
 func (a *App) seriesLogo(path string) *myui.Bitmap {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return nil
 	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(a.paths.Root, filepath.FromSlash(path))
+	variants := []string{path}
+	if lower := strings.ToLower(path); strings.HasSuffix(lower, "titlepic.png") {
+		variants = append(variants, path[:len(path)-len("titlepic.png")]+"titilepic.png")
 	}
-	return a.bitmapAt(path)
+	for _, variant := range variants {
+		variant = strings.TrimSpace(variant)
+		if filepath.IsAbs(variant) {
+			if bitmap := a.bitmapAt(filepath.FromSlash(variant)); bitmap != nil {
+				return bitmap
+			}
+			continue
+		}
+		rel := strings.TrimLeft(filepath.FromSlash(variant), string(filepath.Separator))
+		if bitmap := a.bitmapAt(filepath.Join(a.paths.Root, rel)); bitmap != nil {
+			return bitmap
+		}
+		if wd, err := os.Getwd(); err == nil {
+			if bitmap := a.bitmapAt(filepath.Join(wd, rel)); bitmap != nil {
+				return bitmap
+			}
+		}
+	}
+	return nil
 }
 
 func nameOrID(names map[int64]string, id int64) string {
@@ -438,7 +571,6 @@ func (a *App) ensureSeriesBrowse() {
 
 func (a *App) retrySeriesBrowse() {
 	a.seriesBrowseErr = ""
-	a.seriesList = myui.ListState{}
 	a.ensureSeriesBrowse()
 }
 
@@ -450,7 +582,7 @@ func (a *App) runSeriesSearch() {
 	a.seriesQueryLoaded = false
 	a.seriesQueryErr = ""
 	a.seriesQueryResults = nil
-	a.seriesList = myui.ListState{}
+	a.queryVisible = 0
 	if keyword == "" {
 		a.seriesQueryLoading = false
 		a.invalidateWindows()
@@ -482,7 +614,7 @@ func (a *App) clearSeriesSearch() {
 	a.seriesQueryLoading = false
 	a.seriesQueryErr = ""
 	a.seriesQueryResults = nil
-	a.seriesList = myui.ListState{}
+	a.queryVisible = 0
 	a.invalidateWindows()
 }
 
@@ -506,7 +638,7 @@ func (a *App) runSeriesFilter() {
 	a.seriesFilterLoaded = false
 	a.seriesFilterErr = ""
 	a.seriesFilterResults = nil
-	a.seriesFilterList = myui.ListState{}
+	a.filterVisible = 0
 	filter := service.SeriesFilter{
 		BrandID:  brandID,
 		SeriesID: seriesID,

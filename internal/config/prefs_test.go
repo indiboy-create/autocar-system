@@ -8,7 +8,7 @@ import (
 
 func TestPrefsRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "data", "prefs.json")
-	want := Prefs{Language: "en", Appearance: "dark", DefaultPage: "gallery", AutoCheckUpdates: true}
+	want := Prefs{Language: "en", Appearance: "dark", AutoCheckUpdates: true}
 
 	if err := SavePrefs(path, want); err != nil {
 		t.Fatalf("save: %v", err)

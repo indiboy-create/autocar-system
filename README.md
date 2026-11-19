@@ -167,7 +167,7 @@ data / media 位于安装目录（即主程序同级目录）
     update\
 
   media\
-    autohome\
+    autocar\
     youvision\
     gallery\
 ```
@@ -330,7 +330,6 @@ data/sync/conflicts.jsonl
 ```text
 语言
 外观
-默认页面
 ```
 
 分类：

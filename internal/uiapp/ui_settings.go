@@ -141,6 +141,7 @@ func (a *App) settingsView(c *myui.Context) {
 					TrackScroll(&a.settingsScroll).
 					Grow(1).
 					Padding(pad+4, 28, 28, 28).
+					ScrollbarInsets(pad, 0, 0, 0).
 					Gap(10).
 					Children(func() {
 						mark := myui.Box(c.Key("settings-start-mark")).Height(0).Bounds()
@@ -427,7 +428,7 @@ func (a *App) backupSettings(c *myui.Context) {
 
 	a.settingsGroup(c, func() {
 		a.settingsRow(c, i18n.T("立即备份"), i18n.T("把当前数据库保存一份到备份目录"), func() {
-			if myui.Button(c.Key("backup-now"), i18n.T("立即备份")).Clicked() {
+			if myui.Button(c.Key("backup-now"), i18n.T("立即备份")).Cursor(myui.CursorPointer).Clicked() {
 				a.runBackupNow()
 			}
 		})
@@ -510,6 +511,7 @@ func (a *App) cardActionButton(c *myui.Context, key, label string, icon *myui.SV
 		Radius(9).
 		AlignItems(myui.Center).
 		FocusRing(false).
+		Cursor(myui.CursorPointer).
 		Label(label)
 
 	color := p.text
