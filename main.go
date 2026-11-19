@@ -64,6 +64,9 @@ func main() {
 		app.AttachWindow(win)
 		win.SetWindowButtonsTheme(mygo.ThemeSystem)
 
+		// 按偏好做一次每日更新检查；无窗口前不能调用，故放在窗口就绪之后。
+		app.AutoCheckUpdates()
+
 		showMain := func() {
 			if !win.IsVisible() {
 				win.Show()

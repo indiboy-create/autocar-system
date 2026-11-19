@@ -117,15 +117,30 @@ type appGalleryFilter struct {
 }
 
 type appSeriesQuery struct {
-	seriesQueryKeyword  string
-	seriesQueryResults  []domain.Series
-	seriesQueryLoaded   bool
+	seriesQueryKeyword string
+	seriesQueryResults []domain.Series
+	seriesQueryLoaded  bool
+	seriesQueryLoading bool
+	seriesQueryErr     string
+	seriesQuerySeq     int
+	// seriesBrowse 是空关键词时的全量车系，首次进入页面时后台加载一次；
+	// 列表只渲染可视行，不依赖目录页的分批上限。
+	seriesBrowse        []domain.Series
+	seriesBrowseLoading bool
+	seriesBrowseLoaded  bool
+	seriesBrowseErr     string
+	seriesList          myui.ListState
+
 	seriesFilterBrandID string
 	seriesFilterFirmID  string
 	seriesFilterLevel   string
 	seriesFilterEnergy  string
 	seriesFilterResults []domain.Series
 	seriesFilterLoaded  bool
+	seriesFilterLoading bool
+	seriesFilterErr     string
+	seriesFilterSeq     int
+	seriesFilterList    myui.ListState
 }
 
 type appSync struct {
@@ -148,6 +163,8 @@ type appCatalogEdit struct {
 	firms         []domain.Firm
 	series        []domain.Series
 	specs         []domain.Spec
+	seriesLimit   int // 已加载的车系条数，目录页“加载更多”按批增大
+	specsLimit    int // 已加载的年款条数
 
 	brandEdit struct {
 		Name          string
@@ -258,6 +275,8 @@ func New(svc *service.Service, paths config.Paths) *App {
 		gallerySort:   "updated_desc",
 		coverBitmaps:  make(map[string]*myui.Bitmap),
 		catalogEntity: "brand",
+		seriesLimit:   catalogBatch,
+		specsLimit:    catalogBatch,
 		prefs:         prefs,
 		settingsPage:  "general",
 	}
@@ -293,12 +312,12 @@ func (a *App) postMain(fn func()) {
 }
 
 // Refresh 可从任意 goroutine 调用：序号自增与筛选条件快照都在主线程完成，
-// 数据库与封面解码在后台 goroutine 执行，结果再经 Window.Update 回投主线程。
+// 数据库查询在后台 goroutine 执行，结果再经 Window.Update 回投主线程。
 func (a *App) Refresh() {
 	var filter domain.GalleryFilter
 	var seq uint64
 	var win *mygo.Window
-	var withCovers bool
+	var seriesLimit, specLimit int
 
 	// postMain 在主线程上直接执行；从后台调用时会切到主线程并等待，
 	// 保证 refreshSeq 与筛选字段的读写都在同一线程，消除竞态。
@@ -307,18 +326,23 @@ func (a *App) Refresh() {
 		a.refreshSeq = seq
 		filter = a.galleryFilter()
 		win = a.win
-		// 封面只在图集页（默认页）按需解码，其它页面跳过重型 IO。
-		withCovers = a.page == "gallery"
+		seriesLimit, specLimit = a.seriesLimit, a.specsLimit
+		if seriesLimit <= 0 {
+			seriesLimit = catalogBatch
+		}
+		if specLimit <= 0 {
+			specLimit = catalogBatch
+		}
 	})
 
 	if win == nil {
 		// 启动阶段（AttachWindow 之前）无窗口可回投，同步加载一次。
-		a.applyRefresh(a.fetchRefresh(context.Background(), filter, withCovers), seq, false)
+		a.applyRefresh(a.fetchRefresh(context.Background(), filter, seriesLimit, specLimit), seq, false)
 		return
 	}
 
 	go func() {
-		result := a.fetchRefresh(context.Background(), filter, withCovers)
+		result := a.fetchRefresh(context.Background(), filter, seriesLimit, specLimit)
 		win.Update(func() {
 			a.applyAsyncRefresh(result, seq)
 		})
@@ -396,6 +420,12 @@ func (a *App) shortcuts(c *myui.Context) {
 	})
 }
 
+// fillsViewport 报告页面是否自行管理滚动：车系列表是虚拟列表，需要占满
+// 可用高度并由列表自己滚动，不能再套一层 Scroll。
+func (a *App) fillsViewport() bool {
+	return a.page == "seriesQuery" || a.page == "seriesFilter"
+}
+
 func (a *App) View(c *myui.Context) {
 	a.applyTheme(c)
 	a.shortcuts(c)
@@ -422,17 +452,27 @@ func (a *App) View(c *myui.Context) {
 			main := myui.Box(c.Key("main")).Grow(1).Background(p.bg)
 			main.Children(func() {
 				pad := float32(46)
-				myui.Scroll(c.Key("content-"+a.page)).
-					TrackScroll(&a.contentScroll).
-					Grow(1).
-					Padding(pad, 22, 24, 22).
-					Children(func() {
-						mark := myui.Box(c.Key("content-start-mark")).Height(0).Bounds()
-						if mark.W > 0 {
-							a.underTop = mark.Y < pad-0.5
-						}
+				if a.fillsViewport() {
+					// 车系列表自己滚动（虚拟列表），页面不再套外层 Scroll，
+					// 否则列表拿不到可用高度，只能退化成一次性渲染全部行。
+					a.underTop = false
+					myui.Column(c.Key("content-"+a.page)).Grow(1).Padding(pad, 22, 24, 22).Children(func() {
 						a.renderPage(c)
 					})
+				} else {
+					myui.Scroll(c.Key("content-"+a.page)).
+						TrackScroll(&a.contentScroll).
+						Grow(1).
+						Padding(pad, 22, 24, 22).
+						ScrollbarInsets(pad, 0, 24, 0).
+						Children(func() {
+							mark := myui.Box(c.Key("content-start-mark")).Height(0).Bounds()
+							if mark.W > 0 {
+								a.underTop = mark.Y < pad-0.5
+							}
+							a.renderPage(c)
+						})
+				}
 				a.statusBar(c, p)
 				edge := myui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(pad).DragWindow().
 					Material(glass.ScrollEdge{Hard: true, Background: p.bg})

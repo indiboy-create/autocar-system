@@ -15,6 +15,8 @@ type Prefs struct {
 	DefaultPage        string `json:"default_page"`
 	AutoCheckUpdates   bool   `json:"auto_check_updates"`
 	AutoInstallUpdates bool   `json:"auto_install_updates"`
+	// LastUpdateCheck 记录上次自动检查更新的时间（RFC3339），用于每日一次的节流。
+	LastUpdateCheck string `json:"last_update_check"`
 }
 
 func DefaultPrefs() Prefs {

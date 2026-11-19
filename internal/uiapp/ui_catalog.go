@@ -84,6 +84,10 @@ func (a *App) renderSeriesList(c *myui.Context) {
 			}
 		})
 	}
+	a.catalogMore(c, len(a.series), a.countInt("series"), func() {
+		a.seriesLimit += catalogBatch
+		a.Refresh()
+	})
 }
 
 func (a *App) renderSpecList(c *myui.Context) {
@@ -100,6 +104,28 @@ func (a *App) renderSpecList(c *myui.Context) {
 			}
 		})
 	}
+	a.catalogMore(c, len(a.specs), a.countInt("spec"), func() {
+		a.specsLimit += catalogBatch
+		a.Refresh()
+	})
+}
+
+// catalogBatch 是目录页每次多加载的车系/年款条数。
+const catalogBatch = 200
+
+// catalogMore 在列表被分批截断时显示“已显示 / 共”并给出“加载更多”：
+// 车系与年款可达万级，一次全量查询和渲染都会拖慢目录页，分批加载让全部
+// 数据都能到达，又不把首屏变重。
+func (a *App) catalogMore(c *myui.Context, loaded int, total int64, loadMore func()) {
+	if total <= 0 || int64(loaded) >= total {
+		return
+	}
+	myui.Row(c).Gap(8).AlignItems(myui.Center).Children(func() {
+		myui.Text(c, fmt.Sprintf(i18n.T("已显示 %d / 共 %d 条"), loaded, total)).FontSize(12.5)
+		if myui.Button(c, i18n.T("加载更多")).Clicked() {
+			loadMore()
+		}
+	})
 }
 
 func (a *App) loadCatalogEdit(entity string, id int64) {

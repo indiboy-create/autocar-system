@@ -8,6 +8,5 @@
 .workbuddy-ai/
 ScreenShot_*.png
 *.exe
-*.db
 *.db-wal
 *.db-shm

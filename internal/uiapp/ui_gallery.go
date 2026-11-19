@@ -462,12 +462,32 @@ func (a *App) openLightbox(item domain.Gallery) {
 	a.lightboxWin.Focus()
 }
 
+// bitmapAt 按需读取并解码封面，解码结果留在缓存里供后续帧复用：图集列表不再
+// 在刷新时全量解码，GridView 只构建可视单元格，因此只有真正显示的封面才会读盘。
+// 解码失败也记入缓存（nil），避免每帧重试同一个坏文件。缓存超过上限时整体清空，
+// 防止大量图集把位图常驻内存。
 func (a *App) bitmapAt(path string) *myui.Bitmap {
 	if path == "" {
 		return nil
 	}
-	return a.coverBitmaps[path]
+	if a.coverBitmaps == nil {
+		a.coverBitmaps = make(map[string]*myui.Bitmap)
+	}
+	if bitmap, ok := a.coverBitmaps[path]; ok {
+		return bitmap
+	}
+	var bitmap *myui.Bitmap
+	if data, err := os.ReadFile(path); err == nil {
+		bitmap, _ = myui.DecodeBitmap(data)
+	}
+	if len(a.coverBitmaps) >= coverCacheLimit {
+		a.coverBitmaps = make(map[string]*myui.Bitmap)
+	}
+	a.coverBitmaps[path] = bitmap
+	return bitmap
 }
+
+const coverCacheLimit = 1024
 
 func (a *App) galleryCoverPath(item domain.Gallery) string {
 	if item.CoverImage == "" {

@@ -4,6 +4,10 @@
   "identifier": "com.local.autocarsystem",
   "version": "0.1.0",
   "copyright": "© 2026",
+  "updates": {
+    "publicKey": "0z/WoXMLuJJNaBwTLTbdJT7fa/B7Jk2vyt/AKbv6AnQ=",
+    "github": "indiboy-create/autocar-system"
+  },
   "windows": {
     "displayName": "autoCarSystem",
     "installDirName": "autoCarSystem",

@@ -1,0 +1,85 @@
+# Pushing a tag such as v0.1.0 builds the Windows app, signs its update and
+# uploads them to a draft release of the tag, which is published by hand:
+# installed apps update to it then. Running the workflow by hand, from the
+# Actions tab or with `gh workflow run release.yml`, does the same for the
+# version in mygo.json of the branch it runs on, tagging that commit when the
+# tag isn't there yet, and building the tag when it is.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # the tag, the draft release, and the uploads to it
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      # mygo build uploads to the release of mygo.json's version, so that's
+      # the tag. A tag pushed by the workflow's own token starts no other run.
+      - name: Find the tag
+        id: tag
+        run: |
+          tag="v$(jq -r .version mygo.json)"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            if [ "$GITHUB_REF_NAME" != "$tag" ]; then
+              echo "::error::$GITHUB_REF_NAME doesn't match the version of mygo.json, $tag"
+              exit 1
+            fi
+          elif [ -z "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
+            git tag "$tag"
+            git push origin "refs/tags/$tag"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --draft --verify-tag --title "$TAG" --generate-notes
+          fi
+
+  build:
+    needs: draft-release
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ needs.draft-release.outputs.tag }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      # Per job, falling back to the job's last cache when go.mod or go.sum
+      # changes, like test.yml.
+      - name: Find Go's caches
+        id: go-env
+        run: |
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.go-env.outputs.build }}
+            ${{ steps.go-env.outputs.mod }}
+          key: release-go-${{ hashFiles('go.mod', 'go.sum') }}
+          restore-keys: release-go-
+      # MYGO_UPDATER_PRIVATE_KEY is the contents of mygo-update.key, which
+      # signs the update; -upload needs it and fails without it. On Windows,
+      # mygo downloads NSIS when it is not installed.
+      - name: Build, sign and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: go tool mygo build -platform windows/amd64 -upload

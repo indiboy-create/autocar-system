@@ -19,7 +19,7 @@ SELECT id, name, firstletter, logo_url, logo_local_path,
 FROM brand
 ORDER BY id
 LIMIT ?
-`, limit)
+`, limitRows(limit))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("读取品牌失败"), err)
 	}
@@ -71,7 +71,7 @@ SELECT id, brand_id, name, py, link, logo_url, logo_local_path,
 FROM firm
 ORDER BY brand_id, id
 LIMIT ?
-`, limit)
+`, limitRows(limit))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("读取厂商失败"), err)
 	}
@@ -343,6 +343,15 @@ WHERE id = ?
 		return fmt.Errorf("%s: %w", i18n.T("更新年款失败"), err)
 	}
 	return nil
+}
+
+// limitRows 把非正数 limit 视为“不限条数”：SQLite 的负 LIMIT 返回全部行。
+// 调用方用 0 表示不截断，避免各列表各写一个魔法上限。
+func limitRows(n int) int {
+	if n <= 0 {
+		return -1
+	}
+	return n
 }
 
 func valueFloat64(v any) float64 {

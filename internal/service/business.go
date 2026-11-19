@@ -56,7 +56,7 @@ SELECT id, brand_id, firm_id, series_id, category_id,
 FROM youvision
 ORDER BY updated_at DESC, id DESC
 LIMIT ?
-`, limit)
+`, limitRows(limit))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("读取版型失败"), err)
 	}

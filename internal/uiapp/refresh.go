@@ -2,11 +2,8 @@ package uiapp
 
 import (
 	"context"
-	"os"
 
 	"autocarsystem/internal/domain"
-
-	myui "github.com/egoist/mygo/ui"
 )
 
 // refreshResult 是一次后台刷新的全部结果。字段只在后台 goroutine 写入，
@@ -21,15 +18,14 @@ type refreshResult struct {
 	series     []domain.Series
 	specs      []domain.Spec
 	backups    []domain.BackupInfo
-	covers     map[string]*myui.Bitmap
-	withCovers bool // 本次是否按需解码了封面（决定 apply 时是否覆盖缓存）
 	errors     []string
 }
 
-// fetchRefresh 在后台执行所有数据库查询与封面解码，不触碰 App 的可变状态。
-// withCovers 为 false 时跳过封面解码：非图集页不需要封面，省去最多 200 次
-// 磁盘读取与图片解码。
-func (a *App) fetchRefresh(ctx context.Context, filter domain.GalleryFilter, withCovers bool) refreshResult {
+// fetchRefresh 在后台执行所有数据库查询，不触碰 App 的可变状态。
+// 品牌、厂商、版型、图集一次取全（名称映射需要完整数据，图集总数也要与列表
+// 一致）；车系与年款可达万级/十万级，按 seriesLimit/specLimit 分批取，由目录
+// 页的“加载更多”提高上限。封面不在这里解码，改由图集卡片按需读取并缓存。
+func (a *App) fetchRefresh(ctx context.Context, filter domain.GalleryFilter, seriesLimit, specLimit int) refreshResult {
 	var r refreshResult
 
 	if v, err := a.svc.ListCategories(ctx); err != nil {
@@ -38,20 +34,16 @@ func (a *App) fetchRefresh(ctx context.Context, filter domain.GalleryFilter, wit
 		r.categories = v
 	}
 
-	if v, err := a.svc.ListYuvisions(ctx, 200); err != nil {
+	if v, err := a.svc.ListYuvisions(ctx, 0); err != nil {
 		r.errors = append(r.errors, err.Error())
 	} else {
 		r.yuvisions = v
 	}
 
-	if v, err := a.svc.SearchGalleries(ctx, filter, 200); err != nil {
+	if v, err := a.svc.SearchGalleries(ctx, filter, 0); err != nil {
 		r.errors = append(r.errors, err.Error())
 	} else {
 		r.galleries = v
-		if withCovers {
-			r.covers = a.buildCoverBitmaps(v)
-			r.withCovers = true
-		}
 	}
 
 	if v, err := a.svc.Counts(ctx); err != nil {
@@ -60,16 +52,16 @@ func (a *App) fetchRefresh(ctx context.Context, filter domain.GalleryFilter, wit
 		r.counts = v
 	}
 
-	if v, err := a.svc.ListBrands(ctx, 200); err == nil {
+	if v, err := a.svc.ListBrands(ctx, 0); err == nil {
 		r.brands = v
 	}
-	if v, err := a.svc.ListFirms(ctx, 200); err == nil {
+	if v, err := a.svc.ListFirms(ctx, 0); err == nil {
 		r.firms = v
 	}
-	if v, err := a.svc.ListSeries(ctx, 200); err == nil {
+	if v, err := a.svc.ListSeries(ctx, seriesLimit); err == nil {
 		r.series = v
 	}
-	if v, err := a.svc.ListSpecs(ctx, 200); err == nil {
+	if v, err := a.svc.ListSpecs(ctx, specLimit); err == nil {
 		r.specs = v
 	}
 	if v, err := a.svc.ListBackups(); err == nil {
@@ -94,9 +86,6 @@ func (a *App) applyRefresh(r refreshResult, seq uint64, async bool) {
 	if r.galleries != nil {
 		a.galleries = r.galleries
 	}
-	if r.withCovers {
-		a.coverBitmaps = r.covers
-	}
 	if r.counts != nil {
 		a.counts = r.counts
 	}
@@ -118,26 +107,4 @@ func (a *App) applyRefresh(r refreshResult, seq uint64, async bool) {
 	if async {
 		a.invalidateWindows()
 	}
-}
-
-// buildCoverBitmaps 根据图集列表读取并解码封面。只读 a.paths（启动后不变），
-// 因此可安全地在后台 goroutine 调用，返回的 map 由调用方回投到主线程。
-func (a *App) buildCoverBitmaps(galleries []domain.Gallery) map[string]*myui.Bitmap {
-	bitmaps := make(map[string]*myui.Bitmap)
-	for _, item := range galleries {
-		path := a.galleryCoverPath(item)
-		if path == "" || bitmaps[path] != nil {
-			continue
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		bitmap, err := myui.DecodeBitmap(data)
-		if err != nil {
-			continue
-		}
-		bitmaps[path] = bitmap
-	}
-	return bitmaps
 }

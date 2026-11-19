@@ -51,7 +51,7 @@ func (s *Service) SearchGalleries(ctx context.Context, filter domain.GalleryFilt
 		order = "image_count DESC, id DESC"
 	}
 
-	args = append(args, limit)
+	args = append(args, limitRows(limit))
 	sql := `
 SELECT id, youvision_id, brand_id, firm_id, series_id, category_id,
        title, cover_image, images, image_count, created_at, updated_at
